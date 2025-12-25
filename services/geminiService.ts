@@ -4,19 +4,18 @@ import { LearningContent, QuizQuestion, ParentReport, QuizResult } from "../type
 
 /**
  * Orchestrates the tutoring session by analyzing a topic and optional images.
- * Uses gemini-3-pro-preview for complex reasoning tasks.
+ * Uses gemini-3-pro-preview with thinking tokens for high-quality pedagogical planning.
  */
 export async function orchestrateTutor(topic: string, base64Images: string[]): Promise<LearningContent> {
-  // Create a new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const parts: any[] = [{ text: `Topic: ${topic}` }];
   
   base64Images.forEach(img => {
+    // Dynamically extract mimeType from the data URL
+    const mimeType = img.split(';')[0].split(':')[1];
+    const data = img.split(',')[1];
     parts.push({
-      inlineData: {
-        data: img.split(',')[1],
-        mimeType: 'image/jpeg'
-      }
+      inlineData: { data, mimeType }
     });
   });
 
@@ -41,6 +40,8 @@ export async function orchestrateTutor(topic: string, base64Images: string[]): P
     model: 'gemini-3-pro-preview',
     contents: { parts: [...parts, { text: prompt }] },
     config: {
+      // Use thinking tokens for complex educational reasoning
+      thinkingConfig: { thinkingBudget: 16384 },
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -69,7 +70,7 @@ export async function orchestrateTutor(topic: string, base64Images: string[]): P
 }
 
 /**
- * Validates educational content for factual accuracy and age-appropriateness.
+ * Validates educational content for factual accuracy using a faster Flash model.
  */
 export async function validateContent(content: LearningContent): Promise<LearningContent> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -91,16 +92,14 @@ export async function validateContent(content: LearningContent): Promise<Learnin
 }
 
 /**
- * Generates an educational animation using Veo model.
- * Note: Requires a selected paid API key.
+ * Generates an educational animation using the Veo model.
  */
 export async function generateVideo(script: string): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Use veo-3.1-fast-generate-preview for video generation
   let operation = await ai.models.generateVideos({
     model: 'veo-3.1-fast-generate-preview',
-    prompt: `An educational animation based on this script: ${script}. Bright, friendly, clean 2D animation style.`,
+    prompt: `An educational animation based on this script: ${script}. Bright, friendly, clean 2D animation style with clear visual diagrams.`,
     config: {
       numberOfVideos: 1,
       resolution: '720p',
@@ -114,7 +113,7 @@ export async function generateVideo(script: string): Promise<string> {
   }
 
   const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-  // Append API key for downloading video bytes
+  // Mandatory: Append API key to fetch video bytes
   const res = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
   const blob = await res.blob();
   return URL.createObjectURL(blob);

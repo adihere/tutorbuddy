@@ -30,4 +30,4 @@ export interface ParentReport {
   performanceNote: string;
 }
 
-export type AppState = 'IDLE' | 'PROCESSING' | 'LEARNING' | 'QUIZ' | 'REPORT' | 'ERROR';
+export type AppState = 'LANDING' | 'IDLE' | 'PROCESSING' | 'LEARNING' | 'QUIZ' | 'REPORT' | 'ERROR';
