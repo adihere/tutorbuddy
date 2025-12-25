@@ -300,7 +300,15 @@ const App: React.FC = () => {
                 
                 {content.videoUrl ? (
                   <div className="aspect-video rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl">
-                    <video src={content.videoUrl} className="w-full h-full object-cover" controls autoPlay loop />
+                    <video 
+                      src={content.videoUrl} 
+                      className="w-full h-full object-cover" 
+                      controls 
+                      autoPlay 
+                      loop 
+                      muted 
+                      playsInline 
+                    />
                   </div>
                 ) : (
                   <div className="aspect-video rounded-2xl bg-slate-900 flex flex-col items-center justify-center border-2 border-dashed border-slate-800 p-8 text-center space-y-4">

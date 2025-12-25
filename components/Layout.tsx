@@ -4,6 +4,11 @@ import React from 'react';
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900">
+      {/* Universal Safety Banner */}
+      <div className="bg-amber-50 border-b border-amber-100 py-2.5 text-center text-[10px] font-black uppercase tracking-[0.2em] text-amber-800 animate-fadeIn">
+        ⚠️ AI generated content. Parental supervision is recommended for young learners.
+      </div>
+      
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
           <div className="flex items-center gap-3">
