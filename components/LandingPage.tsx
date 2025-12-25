@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { GoogleGenAI } from "@google/genai";
 
 interface LandingPageProps {
@@ -9,55 +8,62 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [isKeyConnected, setIsKeyConnected] = useState(false);
+  const [isGeneratingHero, setIsGeneratingHero] = useState(false);
 
-  useEffect(() => {
-    const checkKeyStatus = async () => {
+  const checkKeyStatus = useCallback(async () => {
+    try {
       // @ts-ignore
       const hasKey = await window.aistudio.hasSelectedApiKey();
       setIsKeyConnected(hasKey);
-    };
+      return hasKey;
+    } catch (e) {
+      return false;
+    }
+  }, []);
 
-    checkKeyStatus();
-
-    const generateHeroImage = async () => {
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: {
-            parts: [
-              {
-                text: 'A professional, modern educational dashboard showing a tutorial on the left, an AI-generated video player in the middle, and a quiz module on the right. 3D isometric style, clean white and blue color palette, cinematic lighting, 16:9 aspect ratio.',
-              },
-            ],
-          },
-          config: {
-            imageConfig: {
-              aspectRatio: "16:9"
-            }
-          }
-        });
-
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            setHeroImageUrl(`data:image/png;base64,${part.inlineData.data}`);
-            break;
+  const generateHeroImage = useCallback(async () => {
+    if (isGeneratingHero) return;
+    setIsGeneratingHero(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            {
+              text: 'A high-end, clean educational tech dashboard. Minimalist 3D isometric interface, soft blue and white hues, cinematic studio lighting, 16:9 aspect ratio.',
+            },
+          ],
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "16:9"
           }
         }
-      } catch (error) {
-        console.error("Failed to generate hero image", error);
-      }
-    };
+      });
 
-    generateHeroImage();
+      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      if (imagePart?.inlineData) {
+        setHeroImageUrl(`data:image/png;base64,${imagePart.inlineData.data}`);
+      }
+    } catch (error) {
+      console.warn("Hero image generation deferred (usually key missing).", error);
+    } finally {
+      setIsGeneratingHero(false);
+    }
+  }, [isGeneratingHero]);
+
+  useEffect(() => {
+    checkKeyStatus().then(hasKey => {
+      if (hasKey) generateHeroImage();
+    });
   }, []);
 
   const handleConnectKey = async () => {
     // @ts-ignore
     await window.aistudio.openSelectKey();
-    // @ts-ignore
-    const hasKey = await window.aistudio.hasSelectedApiKey();
-    setIsKeyConnected(hasKey);
+    const hasKey = await checkKeyStatus();
+    if (hasKey) generateHeroImage();
   };
 
   return (
@@ -70,7 +76,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
-            Gemini 3 Powered
+            Gemini 3 Pro Powered
           </div>
           
           <h1 className="text-5xl lg:text-7xl font-black text-slate-950 leading-tight tracking-tighter">
@@ -97,7 +103,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
                     : 'bg-white border-slate-200 text-slate-700 hover:border-blue-400'
                 }`}
-                title="Bring Your Own Key (BYOK): Your key is used only for generation and is never stored by TutorBuddy. It is discarded immediately after the Mastery Canvas is generated."
               >
                 {isKeyConnected ? (
                   <>
@@ -112,10 +117,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                 )}
               </button>
               
-              {/* Custom Tooltip */}
               <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 w-64 p-4 bg-slate-900 text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 shadow-2xl font-medium leading-relaxed">
                 <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
-                <strong>Privacy Guaranteed:</strong> Your API key is used for secure generation and is discarded after each session. We never store or log your key.
+                <strong>Privacy First:</strong> Your API key is used for secure generation and never stored. We strictly adhere to BYOK standards.
               </div>
             </div>
           </div>
@@ -129,7 +133,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             </div>
           ) : (
             <div className="aspect-video bg-white rounded-3xl animate-pulse flex items-center justify-center border-4 border-dashed border-slate-200 relative">
-              <span className="text-slate-400 font-bold uppercase tracking-widest text-sm">Initializing Master Tutor...</span>
+              <span className="text-slate-400 font-bold uppercase tracking-widest text-sm">Orchestrating AI Tutor...</span>
             </div>
           )}
         </div>
