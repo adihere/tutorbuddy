@@ -5,16 +5,15 @@ export interface QuizQuestion {
   correctAnswer: string;
 }
 
-// Added funFacts to resolve Property 'funFacts' does not exist errors
 export interface LearningContent {
   explanation: string;
   videoUrl: string | null;
+  images: string[] | null; // Added for the fallback slideshow
   quizQuestions: QuizQuestion[];
   topic: string;
   funFacts: string[];
 }
 
-// Added ParentReport interface to resolve Module has no exported member errors
 export interface ParentReport {
   summary: string;
   highlights: string[];
