@@ -1,17 +1,20 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Layout } from './components/Layout.tsx';
 import { TutorForm } from './components/TutorForm.tsx';
 import { Quiz } from './components/Quiz.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
 import { AppState, LearningContent } from './types.ts';
 import { generateTutorial, generateVideo, generateQuiz } from './services/geminiService.ts';
+import { marked } from 'marked';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>('IDLE');
   const [content, setContent] = useState<LearningContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState('');
+  const [viewMode, setViewMode] = useState<'PREVIEW' | 'RAW'>('PREVIEW');
+  const [isCopied, setIsCopied] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
   const checkAndSelectKey = async () => {
@@ -74,7 +77,15 @@ const App: React.FC = () => {
   const resetSession = () => {
     setContent(null);
     setState('IDLE');
-    // The environment handles key disposal; we reset UI state to ensure no data persists.
+    setViewMode('PREVIEW');
+  };
+
+  const copyToClipboard = () => {
+    if (content?.explanation) {
+      navigator.clipboard.writeText(content.explanation);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
   };
 
   return (
@@ -124,19 +135,59 @@ const App: React.FC = () => {
           </div>
 
           <div className="grid lg:grid-cols-12 gap-10">
-            {/* Output 1: Tutorial */}
+            {/* Output 1: Markdown Editor Compatible Tutorial */}
             <div className="lg:col-span-7 space-y-10">
-              <section className="bg-white rounded-[3rem] p-10 lg:p-14 shadow-xl shadow-slate-200 border border-slate-100 relative overflow-hidden">
-                <div className="flex items-center gap-4 mb-10">
-                  <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200 border border-slate-100 flex flex-col h-[700px] overflow-hidden">
+                {/* Editor Toolbar */}
+                <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex bg-slate-200 p-1 rounded-xl">
+                      <button 
+                        onClick={() => setViewMode('PREVIEW')}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        Preview
+                      </button>
+                      <button 
+                        onClick={() => setViewMode('RAW')}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'RAW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        Markdown
+                      </button>
+                    </div>
                   </div>
-                  <h3 className="text-3xl font-black text-slate-950 uppercase tracking-tight">Interactive Tutorial</h3>
+                  <button 
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-all"
+                  >
+                    {isCopied ? (
+                      <><svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg> Copied</>
+                    ) : (
+                      <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> Copy MD</>
+                    )}
+                  </button>
                 </div>
-                <div className="prose prose-slate prose-xl max-w-none text-slate-700 leading-relaxed font-medium">
-                  {content.explanation.split('\n').map((p, i) => p.trim() && (
-                    <p key={i} className="mb-6">{p}</p>
-                  ))}
+
+                {/* Editor Content Area */}
+                <div className="flex-grow overflow-y-auto p-8 lg:p-12 custom-scrollbar">
+                  {viewMode === 'PREVIEW' ? (
+                    <div 
+                      className="prose prose-slate prose-xl max-w-none text-slate-700 prose-headings:font-black prose-headings:tracking-tight prose-a:text-blue-600"
+                      dangerouslySetInnerHTML={{ __html: marked.parse(content.explanation) }}
+                    />
+                  ) : (
+                    <textarea 
+                      readOnly
+                      value={content.explanation}
+                      className="w-full h-full font-mono text-lg text-slate-600 bg-transparent resize-none outline-none leading-relaxed"
+                    />
+                  )}
+                </div>
+                
+                {/* Editor Footer Status */}
+                <div className="px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <span>Markdown Compatible Editor</span>
+                  <span>{content.explanation.length} Characters</span>
                 </div>
               </section>
             </div>
