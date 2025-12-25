@@ -3,15 +3,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { QuizQuestion } from "../types.ts";
 
 /**
- * Prompt 1: Generates a high-quality educational tutorial tailored to a specific age.
+ * Prompt 1: Generates a high-quality educational tutorial tailored to a specific age and subject.
  */
-export async function generateTutorial(topic: string, ageGroup: number): Promise<string> {
+export async function generateTutorial(topic: string, subject: string, ageGroup: number): Promise<string> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `You are an expert tutor teaching a ${ageGroup}-year-old. Provide a clear, structured, and engaging tutorial on the topic: "${topic}". 
+      contents: `You are an expert ${subject} tutor teaching a ${ageGroup}-year-old. Provide a clear, structured, and engaging tutorial on the specific topic: "${topic}". 
       
+      Since this is a ${subject} lesson, ensure your language and examples are field-specific.
       Adjust your tone, complexity, and analogies to be perfectly suited for a ${ageGroup}-year-old learner. 
       - For younger children, use simple words and fun storytelling.
       - For older teens, use more technical terms and real-world applications.
@@ -31,9 +32,9 @@ export async function generateTutorial(topic: string, ageGroup: number): Promise
 }
 
 /**
- * Prompt 2: Generates a 10-second educational video using Veo with age-appropriate visuals.
+ * Prompt 2: Generates a 10-second educational video using Veo with age and subject-appropriate visuals.
  */
-export async function generateVideo(topic: string, ageGroup: number): Promise<string | null> {
+export async function generateVideo(topic: string, subject: string, ageGroup: number): Promise<string | null> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const visualStyle = ageGroup < 10 
@@ -43,7 +44,7 @@ export async function generateVideo(topic: string, ageGroup: number): Promise<st
   try {
     let operation = await ai.models.generateVideos({
       model: 'veo-3.1-fast-generate-preview',
-      prompt: `A 10-second ${visualStyle} educational animation visualizing ${topic} for a ${ageGroup}-year-old audience. High-quality visuals, bright lighting, focus on clarity and engagement.`,
+      prompt: `A 10-second ${visualStyle} educational animation for a ${subject} lesson visualizing ${topic} for a ${ageGroup}-year-old audience. High-quality visuals, bright lighting, focus on subject-specific accuracy and engagement.`,
       config: {
         numberOfVideos: 1,
         resolution: '720p',
@@ -51,7 +52,6 @@ export async function generateVideo(topic: string, ageGroup: number): Promise<st
       }
     });
 
-    // Max 10 attempts (100 seconds)
     let attempts = 0;
     while (!operation.done && attempts < 10) {
       await new Promise(resolve => setTimeout(resolve, 10000));
@@ -60,10 +60,7 @@ export async function generateVideo(topic: string, ageGroup: number): Promise<st
       attempts++;
     }
 
-    if (!operation.done) {
-      console.warn("Video generation timed out.");
-      return null;
-    }
+    if (!operation.done) return null;
 
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) return null;
@@ -71,25 +68,22 @@ export async function generateVideo(topic: string, ageGroup: number): Promise<st
     return `${downloadLink}&key=${process.env.API_KEY}`;
   } catch (error: any) {
     const errorString = JSON.stringify(error);
-    console.error("Video Generation Detailed Error:", errorString);
-    
-    // Bubble up specific model availability errors
-    if (errorString.includes("Requested entity was not found") || error.message?.includes("Requested entity was not found")) {
+    if (errorString.includes("Requested entity was not found")) {
       throw new Error("MODEL_NOT_AVAILABLE");
     }
-    return null; // Return null for other errors to allow partial success
+    return null;
   }
 }
 
 /**
- * Generates three images using the nano banana model as a fallback for video.
+ * Generates three images using the nano banana model with subject context.
  */
-export async function generateImages(topic: string, ageGroup: number): Promise<string[]> {
+export async function generateImages(topic: string, subject: string, ageGroup: number): Promise<string[]> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompts = [
-    `An educational illustration of ${topic} for a ${ageGroup} year old, clear and high contrast.`,
-    `A detailed scientific or conceptual diagram of ${topic} suitable for ${ageGroup} year olds.`,
-    `A 3D render or artistic depiction of ${topic} to engage a ${ageGroup} year old student.`
+    `An educational ${subject} illustration of ${topic} for a ${ageGroup} year old, clear and high contrast.`,
+    `A detailed ${subject} diagram or conceptual map of ${topic} suitable for ${ageGroup} year olds.`,
+    `A 3D render or artistic depiction of ${topic} within the context of ${subject} to engage a ${ageGroup} year old student.`
   ];
 
   try {
@@ -119,15 +113,15 @@ export async function generateImages(topic: string, ageGroup: number): Promise<s
 }
 
 /**
- * Prompt 3: Generates a 5-question mastery quiz tailored to the age group.
+ * Prompt 3: Generates a 5-question mastery quiz tailored to the age and subject.
  */
-export async function generateQuiz(topic: string, ageGroup: number): Promise<QuizQuestion[]> {
+export async function generateQuiz(topic: string, subject: string, ageGroup: number): Promise<QuizQuestion[]> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Generate a 5-question multiple choice quiz to test mastery of "${topic}" for a ${ageGroup}-year-old. 
-      The difficulty of the questions and the language used should be calibrated specifically for someone who is ${ageGroup} years old.`,
+      contents: `Generate a 5-question multiple choice quiz to test mastery of "${topic}" within the field of ${subject} for a ${ageGroup}-year-old. 
+      The difficulty of the questions, the subject-specific terminology, and the language used should be calibrated specifically for someone who is ${ageGroup} years old.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -148,11 +142,10 @@ export async function generateQuiz(topic: string, ageGroup: number): Promise<Qui
     const text = response.text;
     if (!text) return [];
 
-    // Robust extraction: strip markdown backticks if present
     const cleanJson = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
     return JSON.parse(cleanJson);
   } catch (error) {
     console.error("Quiz Generation Error:", error);
-    return []; // Return empty array to allow session to proceed without quiz
+    return [];
   }
 }

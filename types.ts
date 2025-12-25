@@ -8,9 +8,10 @@ export interface QuizQuestion {
 export interface LearningContent {
   explanation: string;
   videoUrl: string | null;
-  images: string[] | null; // Added for the fallback slideshow
+  images: string[] | null;
   quizQuestions: QuizQuestion[];
   topic: string;
+  subject: string; // Added subject for context
   funFacts: string[];
 }
 

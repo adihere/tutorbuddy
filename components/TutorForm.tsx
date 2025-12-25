@@ -2,65 +2,89 @@
 import React, { useState } from 'react';
 
 interface TutorFormProps {
-  onSubmit: (topic: string, ageGroup: number, videoEnabled: boolean) => void;
+  onSubmit: (topic: string, subject: string, ageGroup: number, videoEnabled: boolean) => void;
   isLoading: boolean;
 }
 
 export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => {
   const [topic, setTopic] = useState('');
+  const [subject, setSubject] = useState('Science');
   const [ageGroup, setAgeGroup] = useState<number>(10);
   const [videoEnabled, setVideoEnabled] = useState(true);
+
+  const subjects = ["Math", "Science", "Latin", "English", "Geography"];
+  const ages = Array.from({ length: 13 }, (_, i) => i + 5); // 5 to 17
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (topic.trim() && !isLoading) {
-      onSubmit(topic, ageGroup, videoEnabled);
+      onSubmit(topic, subject, ageGroup, videoEnabled);
     }
   };
 
-  const ages = Array.from({ length: 13 }, (_, i) => i + 5); // 5 to 17
-
   return (
-    <div className="max-w-2xl mx-auto py-12 px-4 animate-fadeIn">
+    <div className="max-w-4xl mx-auto py-12 px-4 animate-fadeIn">
       <div className="text-center mb-10">
         <h2 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Personalized Learning</h2>
-        <p className="text-slate-500 text-lg">Tell us your topic and age, and we'll tailor the perfect lesson for you.</p>
+        <p className="text-slate-500 text-lg">Choose your subject and topic to begin your tailored mastery session.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-grow relative">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          {/* Topic Input */}
+          <div className="md:col-span-6 relative">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-4">Lesson Topic</label>
             <input
               type="text"
               className="w-full px-8 py-6 rounded-[2rem] border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-xl shadow-sm"
-              placeholder="e.g., Quantum Physics or Dinosaurs"
+              placeholder="e.g., Quantum Physics or Roman Empire"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               disabled={isLoading}
             />
           </div>
           
-          <div className="md:w-48 relative">
+          {/* Subject Dropdown */}
+          <div className="md:col-span-3 relative">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-4">Subject</label>
+            <select
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              disabled={isLoading}
+              className="w-full h-[78px] px-6 py-4 rounded-[2rem] border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-xl shadow-sm appearance-none bg-white cursor-pointer"
+            >
+              {subjects.map(sub => (
+                <option key={sub} value={sub}>{sub}</option>
+              ))}
+            </select>
+            <div className="absolute right-6 top-[55px] -translate-y-1/2 pointer-events-none text-slate-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
+            </div>
+          </div>
+
+          {/* Age Dropdown */}
+          <div className="md:col-span-3 relative">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-4">Learner Age</label>
             <select
               value={ageGroup}
               onChange={(e) => setAgeGroup(parseInt(e.target.value))}
               disabled={isLoading}
-              className="w-full h-full px-6 py-6 rounded-[2rem] border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-xl shadow-sm appearance-none bg-white cursor-pointer"
+              className="w-full h-[78px] px-6 py-4 rounded-[2rem] border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-xl shadow-sm appearance-none bg-white cursor-pointer"
             >
               {ages.map(age => (
                 <option key={age} value={age}>Age {age}</option>
               ))}
             </select>
-            <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <div className="absolute right-6 top-[55px] -translate-y-1/2 pointer-events-none text-slate-400">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
             </div>
           </div>
         </div>
 
         {/* Output Mode Selector */}
-        <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+        <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-4 px-2">
-            <label className="text-sm font-black text-slate-400 uppercase tracking-widest">Output Mode</label>
+            <label className="text-sm font-black text-slate-400 uppercase tracking-widest">Visual Output Mode</label>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -89,7 +113,7 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
         <button
           type="submit"
           disabled={isLoading || !topic.trim()}
-          className="w-full py-6 rounded-[2rem] bg-blue-600 text-white font-black text-2xl hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-4 shadow-xl shadow-blue-100 hover:-translate-y-1 active:scale-[0.98]"
+          className="w-full max-w-2xl mx-auto py-6 rounded-[2rem] bg-blue-600 text-white font-black text-2xl hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-4 shadow-xl shadow-blue-100 hover:-translate-y-1 active:scale-[0.98]"
         >
           {isLoading ? (
             <>

@@ -59,21 +59,21 @@ const App: React.FC = () => {
     }
   };
 
-  const handleStartSession = async (userTopic: string, ageGroup: number, videoEnabled: boolean) => {
+  const handleStartSession = async (userTopic: string, subject: string, ageGroup: number, videoEnabled: boolean) => {
     try {
       await checkAndSelectKey();
       setState('PROCESSING');
       setError(null);
 
       // 1. Generate Core Content (Tutorial)
-      setLoadingStep(`Drafting your lesson...`);
-      const tutorial = await generateTutorial(userTopic, ageGroup);
+      setLoadingStep(`Drafting your ${subject} lesson...`);
+      const tutorial = await generateTutorial(userTopic, subject, ageGroup);
 
       // 2. Generate Secondary Content
       setLoadingStep(`Building mastery check...`);
       let quiz: any[] = [];
       try {
-        quiz = await generateQuiz(userTopic, ageGroup);
+        quiz = await generateQuiz(userTopic, subject, ageGroup);
       } catch (qErr) {
         console.warn("Quiz generation failed", qErr);
       }
@@ -82,25 +82,25 @@ const App: React.FC = () => {
       let images: string[] | null = null;
 
       if (videoEnabled) {
-        setLoadingStep(`Rendering AI visualizer...`);
+        setLoadingStep(`Rendering ${subject} visualizer...`);
         try {
-          videoUrl = await generateVideo(userTopic, ageGroup);
-          // If video fails or returns null, we can try to fall back to images even if video was enabled
+          videoUrl = await generateVideo(userTopic, subject, ageGroup);
           if (!videoUrl) {
             setLoadingStep(`Video unavailable. Generating image loop instead...`);
-            images = await generateImages(userTopic, ageGroup);
+            images = await generateImages(userTopic, subject, ageGroup);
           }
         } catch (videoError: any) {
           console.warn("Video failed, trying images fallback.");
-          images = await generateImages(userTopic, ageGroup);
+          images = await generateImages(userTopic, subject, ageGroup);
         }
       } else {
         setLoadingStep(`Generating educational image loop...`);
-        images = await generateImages(userTopic, ageGroup);
+        images = await generateImages(userTopic, subject, ageGroup);
       }
 
       setContent({
         topic: userTopic,
+        subject: subject,
         explanation: tutorial,
         quizQuestions: quiz,
         videoUrl: videoUrl,
@@ -201,7 +201,7 @@ const App: React.FC = () => {
         <div className="max-w-6xl mx-auto space-y-12 pb-32 animate-fadeIn">
           <div className="flex flex-col md:flex-row md:items-end justify-between border-b-2 border-slate-100 pb-8 gap-6">
             <div>
-              <span className="text-sm font-black text-blue-600 uppercase tracking-widest mb-2 block">Mastery Canvas</span>
+              <span className="text-sm font-black text-blue-600 uppercase tracking-widest mb-2 block">{content.subject} Mastery Canvas</span>
               <h2 className="text-5xl font-black text-slate-950 tracking-tighter capitalize">{content.topic}</h2>
             </div>
             <div className="flex flex-col items-end gap-2">
