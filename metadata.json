@@ -1,0 +1,7 @@
+{
+  "name": "TutorBuddy",
+  "description": "An agentic AI tutor that empowers students with personalized learning, quizzes, and videos generated from textbook scans or topics using Gemini 3.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
