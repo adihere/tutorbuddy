@@ -5,29 +5,25 @@ export interface QuizQuestion {
   correctAnswer: string;
 }
 
+// Added funFacts to resolve Property 'funFacts' does not exist errors
 export interface LearningContent {
   explanation: string;
-  funFacts: string[];
-  videoScript: string;
+  videoUrl: string | null;
   quizQuestions: QuizQuestion[];
+  topic: string;
+  funFacts: string[];
+}
+
+// Added ParentReport interface to resolve Module has no exported member errors
+export interface ParentReport {
+  summary: string;
+  highlights: string[];
+  recommendations: string;
 }
 
 export interface QuizResult {
   score: number;
   total: number;
-  answers: {
-    question: string;
-    userAnswer: string;
-    correctAnswer: string;
-    isCorrect: boolean;
-  }[];
 }
 
-export interface ParentReport {
-  summary: string;
-  highlights: string[];
-  recommendations: string;
-  performanceNote: string;
-}
-
-export type AppState = 'LANDING' | 'IDLE' | 'PROCESSING' | 'LEARNING' | 'QUIZ' | 'REPORT' | 'ERROR';
+export type AppState = 'IDLE' | 'PROCESSING' | 'RESULT' | 'ERROR';

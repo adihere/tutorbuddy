@@ -1,161 +1,202 @@
 
-import React, { useState, useEffect } from 'react';
-import { Layout } from './components/Layout';
-import { TutorForm } from './components/TutorForm';
-import { ContentDisplay } from './components/ContentDisplay';
-import { Quiz } from './components/Quiz';
-import { ParentReportView } from './components/ParentReportView';
-import { LandingPage } from './components/LandingPage';
-import { 
-  AppState, 
-  LearningContent, 
-  QuizResult, 
-  ParentReport 
-} from './types';
-import { 
-  orchestrateTutor, 
-  validateContent, 
-  generateParentReport,
-  generateVideo 
-} from './services/geminiService';
+import React, { useState, useRef } from 'react';
+import { Layout } from './components/Layout.tsx';
+import { TutorForm } from './components/TutorForm.tsx';
+import { Quiz } from './components/Quiz.tsx';
+import { LandingPage } from './components/LandingPage.tsx';
+import { AppState, LearningContent } from './types.ts';
+import { generateTutorial, generateVideo, generateQuiz } from './services/geminiService.ts';
 
 const App: React.FC = () => {
-  const [state, setState] = useState<AppState>('LANDING');
-  const [statusMessage, setStatusMessage] = useState('Personalizing your lesson...');
+  const [state, setState] = useState<AppState>('IDLE');
   const [content, setContent] = useState<LearningContent | null>(null);
-  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
-  const [report, setReport] = useState<ParentReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
+  const formRef = useRef<HTMLDivElement>(null);
 
-  const handleStartSession = async (topic: string, images: string[]) => {
-    setState('PROCESSING');
-    setStatusMessage('Orchestrator Agent: Crafting lesson plan...');
-    setError(null);
+  const checkAndSelectKey = async () => {
+    // @ts-ignore
+    const hasKey = await window.aistudio.hasSelectedApiKey();
+    if (!hasKey) {
+      // @ts-ignore
+      await window.aistudio.openSelectKey();
+    }
+  };
+
+  const handleStartSession = async (userTopic: string) => {
     try {
-      // Agent 1: Orchestrator
-      const rawContent = await orchestrateTutor(topic, images);
-      
-      // Agent 2: Validator
-      setStatusMessage('Validator Agent: Verifying factual accuracy...');
-      const validated = await validateContent(rawContent);
-      
-      setContent(validated);
-      setState('LEARNING');
+      await checkAndSelectKey();
+      setState('PROCESSING');
+      setError(null);
 
-      // Start video generation in background using Veo model
-      generateAndSetVideo(validated.videoScript);
+      // Prompt 1: Tutorial
+      setLoadingStep('Step 1: Drafting Tutorial...');
+      const tutorial = await generateTutorial(userTopic);
+
+      // Prompt 2: Quiz
+      setLoadingStep('Step 2: Building Quiz...');
+      const quiz = await generateQuiz(userTopic);
+
+      // Prompt 3: Video
+      setLoadingStep('Step 3: Generating 10s AI Video (Veo)...');
+      let videoUrl = null;
+      try {
+        videoUrl = await generateVideo(userTopic);
+      } catch (videoError: any) {
+        if (videoError.message === 'MODEL_NOT_AVAILABLE') {
+          // Trigger key selection again if 404 occurred
+          // @ts-ignore
+          await window.aistudio.openSelectKey();
+          setLoadingStep('Model access issue. Retrying video...');
+          videoUrl = await generateVideo(userTopic).catch(() => null);
+        }
+      }
+
+      setContent({
+        topic: userTopic,
+        explanation: tutorial,
+        quizQuestions: quiz,
+        videoUrl: videoUrl,
+        funFacts: [] 
+      });
+      setState('RESULT');
     } catch (err: any) {
       console.error(err);
-      setError("Failed to generate learning material. Please try again.");
+      setError(err.message || "An unexpected error occurred. Please ensure you connected a valid project key.");
       setState('ERROR');
     }
   };
 
-  const generateAndSetVideo = async (script: string) => {
-    setIsVideoLoading(true);
-    try {
-      const url = await generateVideo(script);
-      setVideoUrl(url);
-    } catch (err: any) {
-      console.error("Video generation failed", err);
-    } finally {
-      setIsVideoLoading(false);
-    }
+  const scrollToForm = () => {
+    formRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleQuizComplete = async (result: QuizResult) => {
-    setQuizResult(result);
-    setState('PROCESSING');
-    setStatusMessage('Reporter Agent: Generating parent highlights...');
-    try {
-      if (content) {
-        const parentReport = await generateParentReport(content, result);
-        setReport(parentReport);
-        setState('REPORT');
-      }
-    } catch (err) {
-      setError("Failed to generate progress report.");
-      setState('ERROR');
-    }
+  const resetSession = () => {
+    setContent(null);
+    setState('IDLE');
+    // The environment handles key disposal; we reset UI state to ensure no data persists.
   };
 
   return (
     <Layout>
-      {state === 'LANDING' && (
-        <LandingPage onStart={() => setState('IDLE')} />
-      )}
-
       {state === 'IDLE' && (
-        <TutorForm onSubmit={handleStartSession} isLoading={false} />
+        <>
+          <LandingPage onStart={scrollToForm} />
+          <div ref={formRef} className="mt-12">
+            <TutorForm onSubmit={handleStartSession} isLoading={false} />
+          </div>
+        </>
       )}
 
       {state === 'PROCESSING' && (
-        <div className="flex flex-col items-center justify-center py-20 space-y-6">
+        <div className="flex flex-col items-center justify-center py-32 space-y-12 animate-fadeIn">
           <div className="relative">
-            <div className="w-24 h-24 border-8 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+            <div className="w-32 h-32 border-[12px] border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <svg className="w-10 h-10 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-              </svg>
+              <span className="text-3xl">🧠</span>
             </div>
           </div>
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900">{statusMessage}</h2>
-            <p className="text-gray-500 mt-2 italic">Building a personalized learning path just for you.</p>
+            <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">{loadingStep}</h2>
+            <p className="text-slate-500 max-w-xs mx-auto leading-relaxed">
+              We're using your provided key to securely generate your custom mastery canvas. Your key will be discarded once the session ends.
+            </p>
           </div>
         </div>
       )}
 
-      {state === 'LEARNING' && content && (
-        <div className="space-y-12">
-          {videoUrl && (
-            <div className="max-w-4xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-black border-4 border-white">
-              <video src={videoUrl} controls className="w-full aspect-video" />
+      {state === 'RESULT' && content && (
+        <div className="max-w-6xl mx-auto space-y-12 pb-32 animate-fadeIn">
+          <div className="flex flex-col md:flex-row md:items-end justify-between border-b-2 border-slate-100 pb-8 gap-6">
+            <div>
+              <span className="text-sm font-black text-blue-600 uppercase tracking-widest mb-2 block">Mastery Canvas</span>
+              <h2 className="text-5xl font-black text-slate-950 tracking-tighter capitalize">{content.topic}</h2>
             </div>
-          )}
-          {isVideoLoading && !videoUrl && (
-            <div className="max-w-4xl mx-auto bg-gray-900 aspect-video rounded-3xl flex flex-col items-center justify-center text-white p-12 text-center">
-               <svg className="animate-spin h-10 w-10 mb-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <p className="text-lg font-medium">Generating your animated learning video...</p>
-              <p className="text-sm opacity-60">This usually takes about a minute with Veo. You can start reading below while you wait!</p>
+            <div className="flex flex-col items-end gap-2">
+              <button 
+                onClick={resetSession}
+                className="px-8 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all hover:-translate-y-1 shadow-xl"
+              >
+                New Session
+              </button>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Session context & Key cleared on reset</span>
             </div>
-          )}
-          <ContentDisplay 
-            content={content} 
-            onNext={() => setState('QUIZ')} 
-          />
+          </div>
+
+          <div className="grid lg:grid-cols-12 gap-10">
+            {/* Output 1: Tutorial */}
+            <div className="lg:col-span-7 space-y-10">
+              <section className="bg-white rounded-[3rem] p-10 lg:p-14 shadow-xl shadow-slate-200 border border-slate-100 relative overflow-hidden">
+                <div className="flex items-center gap-4 mb-10">
+                  <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                  </div>
+                  <h3 className="text-3xl font-black text-slate-950 uppercase tracking-tight">Interactive Tutorial</h3>
+                </div>
+                <div className="prose prose-slate prose-xl max-w-none text-slate-700 leading-relaxed font-medium">
+                  {content.explanation.split('\n').map((p, i) => p.trim() && (
+                    <p key={i} className="mb-6">{p}</p>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            {/* Output 2 & 3: Video & Quiz */}
+            <div className="lg:col-span-5 space-y-10">
+              {/* Output 2: Video */}
+              <section className="bg-slate-950 rounded-[3rem] p-8 shadow-2xl text-white overflow-hidden relative group">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/10 text-white rounded-xl">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <h3 className="text-xl font-black uppercase tracking-tight">AI Explainer Video</h3>
+                  </div>
+                  <div className="px-3 py-1 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">Veo 3.1</div>
+                </div>
+                
+                {content.videoUrl ? (
+                  <div className="aspect-video rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl">
+                    <video src={content.videoUrl} className="w-full h-full object-cover" controls autoPlay loop />
+                  </div>
+                ) : (
+                  <div className="aspect-video rounded-2xl bg-slate-900 flex flex-col items-center justify-center border-2 border-dashed border-slate-800 p-8 text-center space-y-4">
+                    <svg className="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <p className="text-slate-500 text-sm font-bold">Video generation unavailable. Your project may need billing enabled for Veo models.</p>
+                  </div>
+                )}
+              </section>
+
+              {/* Output 3: Quiz */}
+              <section className="bg-emerald-50 rounded-[3rem] p-10 border border-emerald-100 shadow-xl shadow-emerald-50">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-100">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Mastery Quiz</h3>
+                </div>
+                <Quiz 
+                  questions={content.quizQuestions} 
+                  onComplete={(res) => console.log("Mastery Check:", res)} 
+                />
+              </section>
+            </div>
+          </div>
         </div>
-      )}
-
-      {state === 'QUIZ' && content && (
-        <Quiz 
-          questions={content.quizQuestions} 
-          onComplete={handleQuizComplete} 
-        />
-      )}
-
-      {state === 'REPORT' && report && quizResult && (
-        <ParentReportView report={report} quizResult={quizResult} />
       )}
 
       {state === 'ERROR' && (
-        <div className="max-w-lg mx-auto bg-red-50 border border-red-200 rounded-3xl p-10 text-center">
-          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <div className="max-w-lg mx-auto bg-white border border-slate-100 rounded-[3rem] p-12 text-center shadow-2xl mt-12 animate-fadeIn">
+          <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-8">
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
           </div>
-          <h2 className="text-2xl font-bold text-red-900 mb-2">Oops! Something went wrong</h2>
-          <p className="text-red-700 mb-6">{error}</p>
+          <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Access Error</h2>
+          <p className="text-slate-500 mb-10 text-lg leading-relaxed">{error}</p>
           <button 
-            onClick={() => setState('IDLE')}
-            className="px-8 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
+            onClick={resetSession}
+            className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
           >
-            Try Again
+            Reset Session
           </button>
         </div>
       )}
