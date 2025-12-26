@@ -50,4 +50,4 @@ TutorBuddy operates on a **BYOK (Bring Your Own Key)** model:
 AI-generated content may occasionally contain inaccuracies. We recommend parental or educator supervision for younger students using the platform.
 
 ---
-*Developed by Senior Frontend Engineering Team*
+*Developed for a rapid hackathon on gemini3*
