@@ -76,7 +76,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
-            Gemini 3 Pro Powered
+            Gemini 2.5 Flash-Lite Powered
           </div>
           
           <h1 className="text-5xl lg:text-7xl font-black text-slate-950 leading-tight tracking-tighter">
@@ -84,7 +84,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           </h1>
           
           <p className="text-xl text-slate-500 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-            Enter any topic. We generate a professional tutorial, a high-quality AI video, and a custom quiz instantly.
+            Enter any topic. We generate a professional tutorial, an emotional audio dialogue, and 5 custom visual mastery aids instantly.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 justify-center lg:justify-start">
@@ -112,15 +112,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                 ) : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-                    Connect BYOK
+                    Connect Key
                   </>
                 )}
               </button>
-              
-              <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 w-64 p-4 bg-slate-900 text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 shadow-2xl font-medium leading-relaxed">
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
-                <strong>Bring Your Own Key (BYOK):</strong> Your API key is used for secure generation and never stored. We strictly adhere to privacy-focused standards.
-              </div>
             </div>
           </div>
         </div>
@@ -146,23 +141,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
           </div>
           <h3 className="text-xl font-bold text-slate-950 mb-3">Structured Tutorials</h3>
-          <p className="text-slate-500 leading-relaxed">Gemini 3 Flash crafts clear, concise lessons with expert analogies for any complex topic.</p>
+          <p className="text-slate-500 leading-relaxed">Gemini 2.5 Flash-Lite crafts clear, concisely formatted lessons with expert analogies.</p>
         </div>
 
         <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">
           <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </div>
-          <h3 className="text-xl font-bold text-slate-950 mb-3">Veo AI Visuals</h3>
-          <p className="text-slate-500 leading-relaxed">Watch custom 10-second educational videos generated specifically for your learning session.</p>
+          <h3 className="text-xl font-bold text-slate-950 mb-3">5 Visual Mastery Aids</h3>
+          <p className="text-slate-500 leading-relaxed">Experience 5 high-quality AI generated images tailored to visualize your learning topic.</p>
         </div>
 
         <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">
           <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
           </div>
-          <h3 className="text-xl font-bold text-slate-950 mb-3">Mastery Quizzes</h3>
-          <p className="text-slate-500 leading-relaxed">Test your knowledge immediately with AI-generated mastery checks that adapt to your topic.</p>
+          <h3 className="text-xl font-bold text-slate-950 mb-3">Emotional Dialogues</h3>
+          <p className="text-slate-500 leading-relaxed">Listen to Buddy and Sam discuss your topic with multi-speaker emotional TTS technology.</p>
         </div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 export interface QuizQuestion {
   question: string;
   options: string[];
@@ -9,7 +8,6 @@ export type OutputMode = 'TEXT' | 'TEXT_AUDIO' | 'TEXT_AUDIO_IMAGES' | 'ALL';
 
 export interface LearningContent {
   explanation: string;
-  videoUrl: string | null;
   images: string[] | null;
   quizQuestions: QuizQuestion[];
   topic: string;

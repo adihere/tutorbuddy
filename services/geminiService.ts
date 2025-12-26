@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { QuizQuestion, ParentReport } from "../types.ts";
 
@@ -18,7 +17,7 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite-latest',
-      contents: `Evaluate safety for topic "${topic}" (Subject: ${subject}, Age: ${ageGroup}). No politics/adult themes.`,
+      contents: `Evaluate safety for topic "${topic}" (Subject: ${subject}, Age: ${ageGroup}). No politics/adult themes. Return JSON with isSafe (bool) and reason (string).`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -42,30 +41,39 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-lite-latest',
-    contents: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}". Use Markdown.`,
+    contents: `
+      ${SAFETY_DIRECTIVE}
+      Expert ${subject} tutor for age ${ageGroup} on "${topic}".
+      
+      CRITICAL FORMATTING INSTRUCTIONS for SUPERIOR READABILITY:
+      - Use clear, descriptive Markdown headers (## and ###).
+      - Keep paragraphs short (3-4 sentences maximum).
+      - Use bullet points or numbered lists frequently to break up text.
+      - Add a "Concept Spotlight" blockquote for the most important part.
+      - Use bold text for essential terminology.
+      - Ensure a smooth flow from "What is it?" to "Why does it matter?"
+    `,
   });
   return response.text || "";
 }
 
-/**
- * Generates an emotional multi-speaker dialogue based on the tutorial content.
- */
 async function generateDialogueText(tutorialText: string, topic: string, ageGroup: number): Promise<string> {
   const ai = getAI();
   const prompt = `
-    Transform the following tutorial about "${topic}" for a ${ageGroup}-year-old into a short, high-energy, and emotional educational dialogue.
+    Transform the following tutorial about "${topic}" for a ${ageGroup}-year-old into a short, high-energy, and emotional educational dialogue between two characters.
+    
     Characters:
     - Buddy: A wise, encouraging, and enthusiastic tutor.
-    - Sam: A curious, energetic student who asks great questions.
+    - Sam: A curious, energetic student who asks insightful questions.
     
     Guidelines:
-    - Use expressive markers for emotions (e.g., "(Sam, excitedly)", "(Buddy, thoughtfully)", "(Buddy, with wonder)").
+    - Use expressive markers for emotions (e.g., "(Sam, with wide eyes)", "(Buddy, chuckling warmly)", "(Sam, gasping in surprise)").
+    - Focus on the coolest part of the lesson.
     - Keep it under 200 words.
-    - Make it sound like a snippet from a fun educational podcast.
     
     Tutorial Content: ${tutorialText.slice(0, 1500)}
     
-    Format output exactly like this:
+    Output Format:
     Buddy: (enthusiastically) [Text]
     Sam: (curiously) [Text]
   `;
@@ -81,12 +89,9 @@ async function generateDialogueText(tutorialText: string, topic: string, ageGrou
 export async function generateSpeech(tutorialText: string, topic: string, ageGroup: number): Promise<string | null> {
   try {
     const ai = getAI();
-    
-    // Stage 1: Generate a vibrant dialogue text using Flash-Lite
     const dialogue = await generateDialogueText(tutorialText, topic, ageGroup);
     
-    // Stage 2: Convert to multi-speaker audio using the TTS model
-    const ttsPrompt = `TTS the following conversation between Buddy and Sam with natural emotions and perfect pacing:
+    const ttsPrompt = `TTS the following conversation between Buddy and Sam with natural emotional expression and perfect educational pacing:
     ${dialogue}`;
     
     const response = await ai.models.generateContent({
@@ -118,38 +123,14 @@ export async function generateSpeech(tutorialText: string, topic: string, ageGro
   }
 }
 
-export async function generateVideo(topic: string, subject: string, ageGroup: number): Promise<string | null> {
-  const ai = getAI();
-  const style = ageGroup < 10 ? "bright animation" : "cinematic 3D visualizer";
-
-  try {
-    let operation = await ai.models.generateVideos({
-      model: 'veo-3.1-fast-generate-preview',
-      prompt: `Educational ${style} animation for ${subject}: ${topic}. Strictly safe for age ${ageGroup}. High quality.`,
-      config: { numberOfVideos: 1, resolution: '720p', aspectRatio: '16:9' }
-    });
-
-    let attempts = 0;
-    while (!operation.done && attempts < 15) {
-      await new Promise(r => setTimeout(r, 10000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
-      attempts++;
-    }
-
-    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    return downloadLink ? `${downloadLink}&key=${process.env.API_KEY}` : null;
-  } catch (err) {
-    console.error("Veo Video Error:", err);
-    return null;
-  }
-}
-
 export async function generateImages(topic: string, subject: string, ageGroup: number): Promise<string[]> {
   const ai = getAI();
   const prompts = [
-    `Educational illustration of ${topic} for ${subject}, age ${ageGroup}.`,
-    `Conceptual 3D visualization of ${topic}.`,
-    `Scientific diagram explaining ${topic}.`
+    `Educational illustration of ${topic} for ${subject}, age ${ageGroup}. High detail, pedagogical style.`,
+    `Conceptual 3D visualization explaining the core principle of ${topic}.`,
+    `Detailed scientific or historical diagram for ${topic}.`,
+    `Atmospheric cinematic scene showing ${topic} in action or its impact.`,
+    `Infographic-style visual summary of ${topic} key components.`
   ];
 
   try {
@@ -165,7 +146,8 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
       .map(res => res.candidates?.[0]?.content?.parts.find(p => p.inlineData))
       .filter((p): p is any => !!p)
       .map(p => `data:image/png;base64,${p.inlineData.data}`);
-  } catch {
+  } catch (err) {
+    console.error("Image generation failed:", err);
     return [];
   }
 }
@@ -175,7 +157,7 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite-latest',
-      contents: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}.`,
+      contents: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}. Include 4 options and 1 correctAnswer.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -203,7 +185,7 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite-latest',
-      contents: `${SAFETY_DIRECTIVE} Generate 3-5 unique, mind-blowing fun facts about "${topic}" in the context of ${subject} for a ${ageGroup}-year-old. Keep each fact under 20 words.`,
+      contents: `${SAFETY_DIRECTIVE} Generate 3-5 unique, mind-blowing fun facts about "${topic}" in the context of ${subject} for a ${ageGroup}-year-old. Keep facts under 20 words each.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -224,10 +206,10 @@ export async function generateParentReport(topic: string, subject: string, ageGr
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite-latest',
       contents: `You are an educational consultant for parents. Topic: "${topic}" (${subject}) for a ${ageGroup}-year-old. 
-      Generate a professional, encouraging report for the parent.
-      1. Summary: What was taught and its value.
-      2. Highlights: 3 key cognitive or academic focus areas for this topic.
-      3. Recommendations: How a parent can extend this learning at home.`,
+      Generate a professional report:
+      1. Summary: Educational value.
+      2. Highlights: 3 key focus areas.
+      3. Recommendations: How to support learning at home.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {

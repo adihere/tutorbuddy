@@ -59,7 +59,48 @@
             animation: shimmer 2s infinite linear;
         }
 
-        /* Selection styling */
+        /* Enhanced Readability & Typography */
+        .prose {
+            max-width: 100% !important;
+        }
+        .prose p {
+            line-height: 2 !important;
+            margin-bottom: 2.5rem !important;
+            font-size: 1.15rem;
+            color: #334155;
+        }
+        .prose h1, .prose h2, .prose h3 {
+            margin-top: 3.5rem !important;
+            margin-bottom: 1.75rem !important;
+            color: #0f172a !important;
+            letter-spacing: -0.03em;
+            font-weight: 800;
+        }
+        .prose h2 { font-size: 2rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.75rem; }
+        .prose h3 { font-size: 1.5rem; }
+        
+        .prose ul, .prose ol {
+            margin-bottom: 2.5rem !important;
+            padding-left: 1.5rem;
+        }
+        .prose li {
+            margin-bottom: 1.25rem !important;
+            line-height: 1.8;
+            position: relative;
+        }
+        .prose strong {
+            color: #1d4ed8 !important;
+            font-weight: 700;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background: #eff6ff;
+            padding: 1.5rem 2rem;
+            border-radius: 0 1rem 1rem 0;
+            font-style: italic;
+            margin: 2.5rem 0;
+        }
+
         ::selection {
             background-color: #dbeafe;
             color: #1e40af;
