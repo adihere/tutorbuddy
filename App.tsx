@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import { Layout } from './components/Layout.tsx';
 import { TutorForm } from './components/TutorForm.tsx';
@@ -24,7 +23,6 @@ const App: React.FC = () => {
   const formRef = useRef<HTMLDivElement>(null);
 
   const checkAndSelectKey = async () => {
-    // Note: We use process.env.API_KEY as per strict project guidelines
     // @ts-ignore
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
@@ -55,53 +53,36 @@ const App: React.FC = () => {
       setLoadingStep(`Drafting your ${subject} lesson...`);
       const tutorial = await generateTutorial(userTopic, subject, ageGroup);
 
-      // Phase 2: Asset Generation (Parallelized for performance)
-      setLoadingStep(`Orchestrating multi-modal assets...`);
-      
-      const quizPromise = generateQuiz(userTopic, subject, ageGroup);
-      const imagesPromise = generateImages(userTopic, subject, ageGroup);
-      const factsPromise = generateFunFacts(userTopic, subject, ageGroup);
-      const reportPromise = generateParentReport(userTopic, subject, ageGroup);
-      
-      let videoUrl: string | null = null;
-      let quiz: any[] = [];
-      let images: string[] = [];
-      let facts: string[] = [];
-      let report: any = null;
-
-      if (videoEnabled) {
-        setLoadingStep(`Finalizing cinematic visualizer...`);
-        const [quizRes, imagesRes, factsRes, reportRes, videoRes] = await Promise.all([
-          quizPromise,
-          imagesPromise,
-          factsPromise,
-          reportPromise,
-          generateVideo(userTopic, subject, ageGroup)
-        ]);
-        quiz = quizRes;
-        images = imagesRes;
-        facts = factsRes;
-        report = reportRes;
-        videoUrl = videoRes;
-      } else {
-        const [quizRes, imagesRes, factsRes, reportRes] = await Promise.all([quizPromise, imagesPromise, factsPromise, reportPromise]);
-        quiz = quizRes;
-        images = imagesRes;
-        facts = factsRes;
-        report = reportRes;
-      }
-
-      setContent({
+      // Transition to ResultView immediately with Tutorial
+      const initialContent: LearningContent = {
         topic: userTopic,
         subject: subject,
         explanation: tutorial,
-        quizQuestions: quiz,
-        videoUrl: videoUrl,
-        images: images,
-        funFacts: facts,
-        parentReport: report
-      });
+        quizQuestions: [],
+        videoUrl: videoEnabled ? 'LOADING' : null,
+        images: 'LOADING' as any,
+        funFacts: 'LOADING' as any,
+        parentReport: 'LOADING' as any
+      };
+      
+      setContent(initialContent);
       setState('RESULT');
+
+      // Phase 2: Parallel background asset generation
+      const updateContent = (update: Partial<LearningContent>) => {
+        setContent(prev => prev ? { ...prev, ...update } : null);
+      };
+
+      // Fire off and update as they resolve
+      generateQuiz(userTopic, subject, ageGroup).then(quiz => updateContent({ quizQuestions: quiz }));
+      generateImages(userTopic, subject, ageGroup).then(images => updateContent({ images }));
+      generateFunFacts(userTopic, subject, ageGroup).then(facts => updateContent({ funFacts: facts }));
+      generateParentReport(userTopic, subject, ageGroup).then(report => updateContent({ parentReport: report }));
+      
+      if (videoEnabled) {
+        generateVideo(userTopic, subject, ageGroup).then(videoUrl => updateContent({ videoUrl }));
+      }
+
     } catch (err: any) {
       console.error("Session Generation Failed:", err);
       setError(err.message || "Failed to create lesson. Please check your API key.");
@@ -128,7 +109,7 @@ const App: React.FC = () => {
   };
 
   const downloadVideo = async () => {
-    if (!content?.videoUrl) return;
+    if (!content?.videoUrl || content.videoUrl === 'LOADING') return;
     setIsVideoDownloading(true);
     try {
       const response = await fetch(content.videoUrl);
