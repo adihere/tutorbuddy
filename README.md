@@ -34,5 +34,27 @@ The platform provides specialized tutoring across academic disciplines:
 
 TutorBuddy operates on a **BYOK (Bring Your Own Key)** model. API keys are handled securely via the provided studio interface.
 
+## 📸 Sample Output
+
+### Application Screenshots
+
+![TutorBuddy Screenshot 1](screenshots/tutorbud-img1.png)
+*Initial query input and topic selection interface*
+
+![TutorBuddy Screenshot 2](screenshots/tutorbud-img2.png)
+*Generated tutorial content with structured markdown lessons*
+
+![TutorBuddy Screenshot 3](screenshots/tutorbud-img3.png)
+*Interactive quiz component for mastery validation*
+
+![TutorBuddy Screenshot 4](screenshots/tutorbud-img4.png)
+*Comprehensive learning report with performance analytics*
+
+### Demo Video
+
+[![TutorBuddy Demo Video](screenshots/tutorbud-img1.png)](screenshots/tutorbuddy-v4.mp4)
+
+*Click the image above to watch a complete demonstration of TutorBuddy in action*
+
 ---
 *Developed by Senior Frontend Engineering Team*
