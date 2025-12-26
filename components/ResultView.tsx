@@ -95,7 +95,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
 }) => {
   const [viewMode, setViewMode] = useState<'PREVIEW' | 'RAW'>('PREVIEW');
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
-  const [showGuardianReport, setShowGuardianReport] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
 
   const [isAudioLoading, setIsAudioLoading] = useState(false);
@@ -278,191 +277,182 @@ export const ResultView: React.FC<ResultViewProps> = ({
         </div>
       </div>
 
-      {showGuardianReport && content.parentReport && !isReportLoading ? (
-        <ParentReportView report={content.parentReport} quizResult={quizResult} />
-      ) : (
-        <div className="grid lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-7 space-y-10">
-            {/* Tutorial Section */}
-            <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200 border border-slate-100 flex flex-col h-[700px] overflow-hidden">
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex bg-slate-200 p-1 rounded-xl">
-                  <button onClick={() => setViewMode('PREVIEW')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
-                  <button onClick={() => setViewMode('RAW')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'RAW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Markdown</button>
-                </div>
-                
+      <div className="grid lg:grid-cols-12 gap-10">
+        <div className="lg:col-span-7 space-y-10">
+          {/* Tutorial Section */}
+          <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200 border border-slate-100 flex flex-col h-[700px] overflow-hidden">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex bg-slate-200 p-1 rounded-xl">
+                <button onClick={() => setViewMode('PREVIEW')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
+                <button onClick={() => setViewMode('RAW')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'RAW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Markdown</button>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                {hasAudio && (
+                  <button
+                    onClick={handleToggleAudio}
+                    disabled={isAudioLoading}
+                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2 ${isAudioPlaying ? 'bg-rose-50 border-rose-200 text-rose-600 ring-4 ring-rose-500/10' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'}`}
+                  >
+                    {isAudioLoading ? (
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 14.828a1 1 0 11-1.414-1.414 5 5 0 000-7.072 1 1 0 011.414-1.414 7 7 0 010 9.9z" clipRule="evenodd" /></svg>
+                    )}
+                    {isAudioPlaying ? 'Stop Audio' : 'Buddy Dialogue'}
+                  </button>
+                )}
+                <button onClick={onDownloadTutorial} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md">Download .md</button>
+              </div>
+            </div>
+
+            <div className="flex-grow overflow-y-auto p-12 custom-scrollbar">
+              {viewMode === 'PREVIEW' ? (
+                <div
+                  className="prose prose-slate prose-xl max-w-none prose-headings:font-black prose-a:text-blue-600"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(content.explanation) }}
+                />
+              ) : (
+                <textarea
+                  readOnly
+                  value={content.explanation}
+                  className="w-full h-full font-mono text-lg text-slate-600 bg-transparent resize-none outline-none leading-relaxed"
+                />
+              )}
+            </div>
+          </section>
+
+          {/* Socratic Chat Section */}
+          <section className="bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[500px] border border-slate-800">
+             <div className="px-8 py-5 border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  {hasAudio && (
-                    <button
-                      onClick={handleToggleAudio}
-                      disabled={isAudioLoading}
-                      className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2 ${isAudioPlaying ? 'bg-rose-50 border-rose-200 text-rose-600 ring-4 ring-rose-500/10' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'}`}
-                    >
-                      {isAudioLoading ? (
-                        <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 14.828a1 1 0 11-1.414-1.414 5 5 0 000-7.072 1 1 0 011.414-1.414 7 7 0 010 9.9z" clipRule="evenodd" /></svg>
-                      )}
-                      {isAudioPlaying ? 'Stop Audio' : 'Buddy Dialogue'}
-                    </button>
-                  )}
-                  <button onClick={onDownloadTutorial} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md">Download .md</button>
+                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                  </div>
+                  <div>
+                    <h3 className="text-white font-black tracking-tight">Ask Buddy</h3>
+                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Socratic Assistant</p>
+                  </div>
                 </div>
-              </div>
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Discussion History: {chatMessages.length}</div>
+             </div>
 
-              <div className="flex-grow overflow-y-auto p-12 custom-scrollbar">
-                {viewMode === 'PREVIEW' ? (
-                  <div
-                    className="prose prose-slate prose-xl max-w-none prose-headings:font-black prose-a:text-blue-600"
-                    dangerouslySetInnerHTML={{ __html: marked.parse(content.explanation) }}
-                  />
+             <div className="flex-grow overflow-y-auto p-8 space-y-6 custom-scrollbar bg-slate-900/50">
+                {chatMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                     <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Buddy&backgroundColor=6366f1" className="w-20 h-20 mb-4" alt="Buddy" />
+                     <p className="text-white font-medium max-w-[200px]">"I'm here to help you master this! Ask me anything about the lesson."</p>
+                  </div>
                 ) : (
-                  <textarea
-                    readOnly
-                    value={content.explanation}
-                    className="w-full h-full font-mono text-lg text-slate-600 bg-transparent resize-none outline-none leading-relaxed"
-                  />
-                )}
-              </div>
-            </section>
-
-            {/* Socratic Chat Section */}
-            <section className="bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[500px] border border-slate-800">
-               <div className="px-8 py-5 border-b border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                  chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
+                      <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-sm font-medium ${
+                        msg.role === 'user' 
+                        ? 'bg-blue-600 text-white rounded-br-none' 
+                        : 'bg-white/10 text-slate-200 border border-white/5 rounded-bl-none'
+                      }`}>
+                        {msg.text}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-white font-black tracking-tight">Ask Buddy</h3>
-                      <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Socratic Assistant</p>
+                  ))
+                )}
+                {isBuddyThinking && (
+                  <div className="flex justify-start animate-pulse">
+                    <div className="bg-white/10 text-slate-400 px-6 py-4 rounded-3xl text-sm font-bold flex items-center gap-2">
+                      Buddy is thinking...
+                      <div className="flex gap-1">
+                        <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></span>
+                        <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                        <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Discussion History: {chatMessages.length}</div>
-               </div>
-
-               <div className="flex-grow overflow-y-auto p-8 space-y-6 custom-scrollbar bg-slate-900/50">
-                  {chatMessages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
-                       <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Buddy&backgroundColor=6366f1" className="w-20 h-20 mb-4" alt="Buddy" />
-                       <p className="text-white font-medium max-w-[200px]">"I'm here to help you master this! Ask me anything about the lesson."</p>
-                    </div>
-                  ) : (
-                    chatMessages.map((msg, idx) => (
-                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
-                        <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-sm font-medium ${
-                          msg.role === 'user' 
-                          ? 'bg-blue-600 text-white rounded-br-none' 
-                          : 'bg-white/10 text-slate-200 border border-white/5 rounded-bl-none'
-                        }`}>
-                          {msg.text}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  {isBuddyThinking && (
-                    <div className="flex justify-start animate-pulse">
-                      <div className="bg-white/10 text-slate-400 px-6 py-4 rounded-3xl text-sm font-bold flex items-center gap-2">
-                        Buddy is thinking...
-                        <div className="flex gap-1">
-                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></span>
-                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-               </div>
-
-               <form onSubmit={handleSendMessage} className="p-6 bg-slate-950 border-t border-white/10">
-                  <div className="relative">
-                    <input 
-                      type="text" 
-                      value={userInput}
-                      onChange={(e) => setUserInput(e.target.value)}
-                      placeholder="Ask Buddy a question..."
-                      className="w-full bg-white/5 border-2 border-white/10 rounded-2xl px-6 py-4 text-white focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 outline-none transition-all pr-24"
-                    />
-                    <button 
-                      type="submit"
-                      disabled={isBuddyThinking || !userInput.trim()}
-                      className="absolute right-2 top-2 bottom-2 px-6 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 transition-all"
-                    >
-                      Send
-                    </button>
-                  </div>
-               </form>
-            </section>
-          </div>
-
-          <div className="lg:col-span-5 space-y-8">
-            <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
-               <div className="flex justify-between items-center mb-4 px-2">
-                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Guardian Insights Dashboard</h3>
-                 {content.parentReport && !isReportLoading && (
-                   <button 
-                     onClick={() => setShowGuardianReport(!showGuardianReport)}
-                     className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 transition-colors"
-                   >
-                     {showGuardianReport ? 'Lesson View' : 'Parent View'}
-                   </button>
-                 )}
-               </div>
-               {showGuardianReport && content.parentReport && !isReportLoading ? (
-                 <ParentReportView report={content.parentReport} quizResult={quizResult} />
-               ) : (
-                 <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative">
-                    {isImagesLoading ? <div className="absolute inset-0 shimmer"></div> : <ImageSlideshow images={content.images || []} topic={content.topic} />}
-                 </div>
-               )}
-            </section>
-
-            <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl overflow-hidden relative">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
-              <h3 className="text-xl font-black text-slate-900 mb-8 uppercase tracking-tight flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                </div>
-                Mind-Blowing Facts
-              </h3>
-              <div className="space-y-6 relative z-10">
-                {isFactsLoading ? (
-                  [1,2,3].map(i => <div key={i} className="h-20 shimmer rounded-3xl opacity-40"></div>)
-                ) : (
-                  (content.funFacts || []).map((fact, idx) => {
-                    const colorClass = FACT_COLORS[idx % FACT_COLORS.length];
-                    const icon = FACT_ICONS[idx % FACT_ICONS.length];
-                    return (
-                      <div 
-                        key={idx} 
-                        className="group flex gap-5 p-5 bg-slate-50/50 rounded-3xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 hover:shadow-md transition-all duration-300"
-                      >
-                        <div className={`flex-shrink-0 w-12 h-12 ${colorClass} text-white rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                          {icon}
-                        </div>
-                        <div className="flex flex-col justify-center">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Discovery #{idx + 1}</span>
-                          <p className="text-slate-700 font-semibold leading-relaxed text-sm group-hover:text-slate-900 transition-colors">
-                            {fact}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
                 )}
-              </div>
-            </section>
+                <div ref={chatEndRef} />
+             </div>
 
-            <section className="bg-emerald-50 rounded-[2.5rem] p-8 border border-emerald-100 shadow-xl">
-              <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">🎯</div>
-                Mastery Check
-              </h3>
-              {isQuizLoading ? <div className="h-24 shimmer rounded-2xl opacity-40"></div> : <Quiz questions={content.quizQuestions} onComplete={(res) => setQuizResult(res)} />}
-            </section>
-          </div>
+             <form onSubmit={handleSendMessage} className="p-6 bg-slate-950 border-t border-white/10">
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    placeholder="Ask Buddy a question..."
+                    className="w-full bg-white/5 border-2 border-white/10 rounded-2xl px-6 py-4 text-white focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 outline-none transition-all pr-24"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={isBuddyThinking || !userInput.trim()}
+                    className="absolute right-2 top-2 bottom-2 px-6 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 transition-all"
+                  >
+                    Send
+                  </button>
+                </div>
+             </form>
+          </section>
         </div>
+
+        <div className="lg:col-span-5 space-y-8">
+          <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
+             <div className="flex justify-between items-center mb-4 px-2">
+               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Mastery Gallery</h3>
+             </div>
+             <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative">
+                {isImagesLoading ? <div className="absolute inset-0 shimmer"></div> : <ImageSlideshow images={content.images || []} topic={content.topic} />}
+             </div>
+          </section>
+
+          <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
+            <h3 className="text-xl font-black text-slate-900 mb-8 uppercase tracking-tight flex items-center gap-3 relative z-10">
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </div>
+              Mind-Blowing Facts
+            </h3>
+            <div className="space-y-6 relative z-10">
+              {isFactsLoading ? (
+                [1,2,3].map(i => <div key={i} className="h-20 shimmer rounded-3xl opacity-40"></div>)
+              ) : (
+                (content.funFacts || []).map((fact, idx) => {
+                  const colorClass = FACT_COLORS[idx % FACT_COLORS.length];
+                  const icon = FACT_ICONS[idx % FACT_ICONS.length];
+                  return (
+                    <div 
+                      key={idx} 
+                      className="group flex gap-5 p-5 bg-slate-50/50 rounded-3xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 hover:shadow-md transition-all duration-300"
+                    >
+                      <div className={`flex-shrink-0 w-12 h-12 ${colorClass} text-white rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                        {icon}
+                      </div>
+                      <div className="flex flex-col justify-center">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Discovery #{idx + 1}</span>
+                        <p className="text-slate-700 font-semibold leading-relaxed text-sm group-hover:text-slate-900 transition-colors">
+                          {fact}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          <section className="bg-emerald-50 rounded-[2.5rem] p-8 border border-emerald-100 shadow-xl">
+            <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">🎯</div>
+              Mastery Check
+            </h3>
+            {isQuizLoading ? <div className="h-24 shimmer rounded-2xl opacity-40"></div> : <Quiz questions={content.quizQuestions} onComplete={(res) => setQuizResult(res)} />}
+          </section>
+        </div>
+      </div>
+
+      {/* Guardian Insights at the bottom of the output window */}
+      {content.parentReport && !isReportLoading && (
+        <section className="mt-16 animate-fadeIn">
+          <ParentReportView report={content.parentReport} quizResult={quizResult} />
+        </section>
       )}
     </div>
   );
