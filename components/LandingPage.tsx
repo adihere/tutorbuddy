@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -32,7 +31,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         contents: {
           parts: [
             {
-              text: 'Kids studying at home in a cozy, warm library setting. Physical hardcover books stacked on wooden tables, colorful flip charts with educational drawings and sketches. Soft golden sunlight, comfortable home atmosphere, high-end educational aesthetic, cinematic lighting, 16:9 aspect ratio.',
+              text: 'Kids studying in a warm, inviting public library. A cozy hybrid environment featuring stacks of physical hardcover books and colorful flip charts alongside subtle, glowing holographic digital interfaces and tablets. Soft golden hour sunlight streaming through large windows, rich wooden textures, comfortable community atmosphere, cinematic lighting, high-end educational aesthetic, 16:9 aspect ratio.',
             },
           ],
         },
@@ -77,7 +76,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
-            Gemini 2.5 Flash-Lite Powered
+            Gemini 3 Flash Powered
           </div>
           
           <h1 className="text-5xl lg:text-7xl font-black text-slate-950 leading-tight tracking-tighter">
@@ -107,7 +106,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
               >
                 {isKeyConnected ? (
                   <>
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 00-1.414 0l4-4z" clipRule="evenodd" /></svg>
                     Key Connected
                   </>
                 ) : (
@@ -142,7 +141,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
           </div>
           <h3 className="text-xl font-bold text-slate-950 mb-3">Structured Tutorials</h3>
-          <p className="text-slate-500 leading-relaxed">Gemini 2.5 Flash-Lite crafts clear, concisely formatted lessons with expert analogies.</p>
+          <p className="text-slate-500 leading-relaxed">Gemini 3 Flash crafts clear, concisely formatted lessons with expert analogies.</p>
         </div>
 
         <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">

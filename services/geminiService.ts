@@ -16,7 +16,7 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite-latest',
+      model: 'gemini-3-flash-preview',
       contents: `Evaluate safety for topic "${topic}" (Subject: ${subject}, Age: ${ageGroup}). No politics/adult themes. Return JSON with isSafe (bool) and reason (string).`,
       config: {
         responseMimeType: "application/json",
@@ -64,7 +64,7 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
   }
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-lite-latest',
+    model: 'gemini-3-flash-preview',
     contents: { parts: promptParts },
   });
   return response.text || "";
@@ -73,7 +73,7 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
 export async function askBuddy(history: {role: 'user' | 'model', text: string}[], userMessage: string, topic: string, subject: string, ageGroup: number): Promise<string> {
   const ai = getAI();
   const chat = ai.chats.create({
-    model: 'gemini-2.5-flash-lite-latest',
+    model: 'gemini-3-flash-preview',
     config: {
       systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. You are discussing ${topic} in the context of ${subject}. Use a Socratic method: instead of just giving answers, ask guided questions to help the student find the answer themselves when appropriate. Always be encouraging and age-appropriate.`
     }
@@ -105,7 +105,7 @@ async function generateDialogueText(tutorialText: string, topic: string, ageGrou
   `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-lite-latest',
+    model: 'gemini-3-flash-preview',
     contents: prompt,
   });
 
@@ -196,7 +196,7 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite-latest',
+      model: 'gemini-3-flash-preview',
       contents: { parts: promptParts },
       config: {
         responseMimeType: "application/json",
@@ -225,7 +225,7 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite-latest',
+      model: 'gemini-3-flash-preview',
       contents: `${SAFETY_DIRECTIVE} Generate 3-5 unique, mind-blowing fun facts about "${topic}" in the context of ${subject} for a ${ageGroup}-year-old. Keep facts under 20 words each.`,
       config: {
         responseMimeType: "application/json",
@@ -245,7 +245,7 @@ export async function generateParentReport(topic: string, subject: string, ageGr
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite-latest',
+      model: 'gemini-3-flash-preview',
       contents: `You are an educational consultant for parents. Topic: "${topic}" (${subject}) for a ${ageGroup}-year-old. 
       Generate a professional report:
       1. Summary: Educational value.

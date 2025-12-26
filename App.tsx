@@ -122,7 +122,7 @@ const App: React.FC = () => {
           </div>
           <div className="text-center">
             <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">{loadingStep}</h2>
-            <p className="text-slate-500 max-w-sm mx-auto leading-relaxed">We're orchestrating your tailored mastery session using Gemini 2.5 Flash-Lite.</p>
+            <p className="text-slate-500 max-w-sm mx-auto leading-relaxed">We're orchestrating your tailored mastery session using Gemini 3 Flash.</p>
           </div>
         </div>
       )}

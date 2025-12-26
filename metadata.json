@@ -1,6 +1,6 @@
 {
   "name": "TutorBuddy",
-  "description": "An agentic AI tutor that empowers students with personalized learning, emotional audio dialogues, and interactive quizzes using Gemini 2.5 Flash-Lite.",
+  "description": "An agentic AI tutor that empowers students with personalized learning, emotional audio dialogues, and interactive quizzes using Gemini 3 Flash.",
   "requestFramePermissions": [
     "camera"
   ]
