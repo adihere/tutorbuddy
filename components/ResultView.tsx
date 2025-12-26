@@ -43,6 +43,21 @@ async function decodeAudioData(
   return buffer;
 }
 
+const FACT_ICONS = [
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.642.316a6 6 0 01-3.86.517l-2.388-.477a2 2 0 00-1.022.547l-1.168 1.168a2 2 0 00.556 3.212 9.035 9.035 0 007.146 0 2 2 0 00.556-3.212l-1.168-1.168z" /></svg>,
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" /></svg>
+];
+
+const FACT_COLORS = [
+  'bg-blue-500',
+  'bg-amber-500',
+  'bg-emerald-500',
+  'bg-rose-500',
+  'bg-violet-500'
+];
+
 export const ResultView: React.FC<ResultViewProps> = ({
   content,
   onReset,
@@ -233,24 +248,45 @@ export const ResultView: React.FC<ResultViewProps> = ({
               </section>
             )}
 
-            <section className="bg-violet-50 rounded-[2.5rem] p-8 border border-violet-100 shadow-xl">
-              <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight flex items-center gap-3">
-                <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white">💡</div>
-                Did You Know?
+            <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
+              <h3 className="text-xl font-black text-slate-900 mb-8 uppercase tracking-tight flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                </div>
+                Mind-Blowing Facts
               </h3>
-              <ul className="space-y-4">
-                {isFactsLoading ? [1,2,3].map(i => <li key={i} className="h-16 shimmer rounded-2xl opacity-40"></li>) : (content.funFacts || []).map((fact, idx) => (
-                  <li key={idx} className="flex gap-4 p-4 bg-white/60 rounded-2xl border border-violet-100/50 text-sm font-medium hover:bg-white transition-colors">
-                    <span className="text-violet-600 font-black">#{idx+1}</span>
-                    {fact}
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-6 relative z-10">
+                {isFactsLoading ? (
+                  [1,2,3].map(i => <div key={i} className="h-20 shimmer rounded-3xl opacity-40"></div>)
+                ) : (
+                  (content.funFacts || []).map((fact, idx) => {
+                    const colorClass = FACT_COLORS[idx % FACT_COLORS.length];
+                    const icon = FACT_ICONS[idx % FACT_ICONS.length];
+                    return (
+                      <div 
+                        key={idx} 
+                        className="group flex gap-5 p-5 bg-slate-50/50 rounded-3xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 hover:shadow-md transition-all duration-300"
+                      >
+                        <div className={`flex-shrink-0 w-12 h-12 ${colorClass} text-white rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                          {icon}
+                        </div>
+                        <div className="flex flex-col justify-center">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Discovery #{idx + 1}</span>
+                          <p className="text-slate-700 font-semibold leading-relaxed text-sm group-hover:text-slate-900 transition-colors">
+                            {fact}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </section>
 
             <section className="bg-emerald-50 rounded-[2.5rem] p-8 border border-emerald-100 shadow-xl">
               <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight flex items-center gap-3">
-                <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white">🎯</div>
+                <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">🎯</div>
                 Mastery Check
               </h3>
               {isQuizLoading ? <div className="h-24 shimmer rounded-2xl opacity-40"></div> : <Quiz questions={content.quizQuestions} onComplete={(res) => setQuizResult(res)} />}
