@@ -43,6 +43,36 @@ async function decodeAudioData(
   return buffer;
 }
 
+/**
+ * Wraps raw PCM data into a playable WAV file
+ */
+function createWavBlob(pcmData: Uint8Array, sampleRate: number = 24000): Blob {
+  const header = new ArrayBuffer(44);
+  const view = new DataView(header);
+
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 32 + pcmData.length, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // Byte rate
+  view.setUint16(32, 2, true); // Block align
+  view.setUint16(34, 16, true); // Bits per sample
+  writeString(36, 'data');
+  view.setUint32(40, pcmData.length, true);
+
+  return new Blob([header, pcmData], { type: 'audio/wav' });
+}
+
 const FACT_ICONS = [
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
@@ -64,7 +94,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
   onDownloadTutorial
 }) => {
   const [viewMode, setViewMode] = useState<'PREVIEW' | 'RAW'>('PREVIEW');
-  const [isCopied, setIsCopied] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [showGuardianReport, setShowGuardianReport] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
@@ -73,6 +102,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const lastGeneratedAudioRef = useRef<string | null>(null);
 
   // Chat State
   const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
@@ -107,32 +137,63 @@ export const ResultView: React.FC<ResultViewProps> = ({
     }
   };
 
-  const copyToClipboard = async () => {
-    await navigator.clipboard.writeText(content.explanation);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-  };
-
-  const handleDownloadZip = async () => {
-    if (!content.images || content.images.length === 0 || isZipping) return;
+  const handleDownloadFullPack = async () => {
+    if (isZipping) return;
     setIsZipping(true);
     try {
       const zip = new JSZip();
-      content.images.forEach((imgBase64, index) => {
-        const base64Data = imgBase64.split(',')[1];
-        zip.file(`image-${index + 1}.png`, base64Data, { base64: true });
-      });
+      const folderName = `TutorBuddy-${content.topic.replace(/\s+/g, '-')}`;
+      const root = zip.folder(folderName);
+
+      // 1. Tutorial Markdown
+      const tutorialMd = `# ${content.topic} (${content.subject})\n\n${content.explanation}\n\n## Fun Facts\n${content.funFacts.map(f => `- ${f}`).join('\n')}`;
+      root.file('lesson.md', tutorialMd);
+
+      // 2. Quiz and Answers
+      const quizMd = `# Quiz: ${content.topic}\n\n${content.quizQuestions.map((q, i) => (
+        `### Question ${i + 1}\n${q.question}\n\nOptions:\n${q.options.map(o => `- ${o}`).join('\n')}\n\n**Correct Answer:** ${q.correctAnswer}\n\n**Buddy's Explanation:** ${q.explanation}\n\n---\n`
+      )).join('\n')}`;
+      root.file('quiz_and_answers.md', quizMd);
+
+      // 3. Images
+      if (content.images && Array.isArray(content.images)) {
+        const imgFolder = root.folder('images');
+        content.images.forEach((imgBase64, index) => {
+          const base64Data = imgBase64.split(',')[1];
+          imgFolder.file(`visual-aid-${index + 1}.png`, base64Data, { base64: true });
+        });
+      }
+
+      // 4. Audio (WAV)
+      let audioBase64 = lastGeneratedAudioRef.current;
+      if (!audioBase64 && hasAudio) {
+        // If user hasn't played audio yet, generate it for the zip
+        audioBase64 = await generateSpeech(content.explanation, content.topic, content.ageGroup);
+      }
+      
+      if (audioBase64) {
+        const audioBlob = createWavBlob(decode(audioBase64));
+        root.file('buddy_dialogue.wav', audioBlob);
+      }
+
+      // 5. Parent Report
+      if (content.parentReport) {
+        const reportTxt = `Guardian Insights: ${content.topic}\n\nSummary: ${content.parentReport.summary}\n\nHighlights:\n${content.parentReport.highlights.map(h => `- ${h}`).join('\n')}\n\nRecommendations: ${content.parentReport.recommendations}`;
+        root.file('guardian_insights.txt', reportTxt);
+      }
+
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `tutorbuddy-gallery-${content.topic.toLowerCase().replace(/\s+/g, '-')}.zip`;
+      link.download = `${folderName}-MasteryPack.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("ZIP creation failed:", err);
+      alert("Failed to create the mastery pack. Please try again.");
     } finally {
       setIsZipping(false);
     }
@@ -147,8 +208,12 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
     setIsAudioLoading(true);
     try {
-      const audioData = await generateSpeech(content.explanation, content.topic, content.ageGroup);
-      if (!audioData) throw new Error("No audio data returned");
+      let audioData = lastGeneratedAudioRef.current;
+      if (!audioData) {
+        audioData = await generateSpeech(content.explanation, content.topic, content.ageGroup);
+        if (!audioData) throw new Error("No audio data returned");
+        lastGeneratedAudioRef.current = audioData;
+      }
 
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = ctx;
@@ -187,18 +252,22 @@ export const ResultView: React.FC<ResultViewProps> = ({
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          {content.parentReport && !isReportLoading && (
-            <button
-              onClick={() => setShowGuardianReport(!showGuardianReport)}
-              className={`px-8 py-4 font-bold rounded-2xl transition-all shadow-lg flex items-center gap-2 ${
-                showGuardianReport 
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-                  : 'bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50'
-              }`}
-            >
-              {showGuardianReport ? 'Back to Lesson' : 'Guardian Insights'}
-            </button>
-          )}
+          <button
+            onClick={handleDownloadFullPack}
+            disabled={isZipping}
+            className={`px-8 py-4 bg-blue-600 text-white font-bold rounded-2xl transition-all shadow-lg flex items-center gap-2 hover:bg-blue-700 hover:-translate-y-1 ${isZipping ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {isZipping ? (
+              <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            )}
+            Download Full Mastery Pack (.zip)
+          </button>
+          
           <button
             onClick={onReset}
             className="px-8 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all hover:-translate-y-1 shadow-xl flex items-center gap-2"
@@ -328,25 +397,26 @@ export const ResultView: React.FC<ResultViewProps> = ({
           </div>
 
           <div className="lg:col-span-5 space-y-8">
-            {hasImages && (
-              <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
-                <div className="flex justify-between items-center mb-4 px-2">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Visual mastery Gallery (5 Images)</h3>
-                  {!isImagesLoading && content.images && content.images.length > 0 && (
-                    <button
-                      onClick={handleDownloadZip}
-                      disabled={isZipping}
-                      className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
-                    >
-                      {isZipping ? 'Zipping...' : 'Download All (.zip)'}
-                    </button>
-                  )}
-                </div>
-                <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative">
-                  {isImagesLoading ? <div className="absolute inset-0 shimmer"></div> : <ImageSlideshow images={content.images || []} topic={content.topic} />}
-                </div>
-              </section>
-            )}
+            <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
+               <div className="flex justify-between items-center mb-4 px-2">
+                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Guardian Insights Dashboard</h3>
+                 {content.parentReport && !isReportLoading && (
+                   <button 
+                     onClick={() => setShowGuardianReport(!showGuardianReport)}
+                     className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 transition-colors"
+                   >
+                     {showGuardianReport ? 'Lesson View' : 'Parent View'}
+                   </button>
+                 )}
+               </div>
+               {showGuardianReport && content.parentReport && !isReportLoading ? (
+                 <ParentReportView report={content.parentReport} quizResult={quizResult} />
+               ) : (
+                 <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative">
+                    {isImagesLoading ? <div className="absolute inset-0 shimmer"></div> : <ImageSlideshow images={content.images || []} topic={content.topic} />}
+                 </div>
+               )}
+            </section>
 
             <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl overflow-hidden relative">
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
