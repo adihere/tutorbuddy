@@ -25,9 +25,10 @@ The platform provides specialized tutoring across academic disciplines:
 | Component | Model / Technology | Purpose |
 | :--- | :--- | :--- |
 | **Reasoning & Text** | `gemini-3-flash-preview` | Tutorial, Quiz, and Report generation |
-| **Audio (TTS)** | `gemini-2.5-flash-preview-tts` | Multi-speaker emotional educational dialogues |
+| **Audio (TTS)** | `gemini-2.5-flash-preview-tts` | Multi-speaker emotional educational dialogues (Buddy & Sam) |
 | **Image Generation** | `gemini-2.5-flash-image` | 5-part educational visual galleries |
 | **Safety Logic** | `gemini-3-flash-preview` | Input validation |
+| **Audio Processing** | Web Audio API | Real-time audio playback and WAV conversion |
 | **Frontend** | React 19 + Tailwind CSS | Responsive, high-performance UI |
 
 ## 🔑 Setup & Privacy
@@ -49,6 +50,26 @@ TutorBuddy operates on a **BYOK (Bring Your Own Key)** model. API keys are handl
 
 ![TutorBuddy Screenshot 4](screenshots/tutorbud-img4.png)
 *Comprehensive learning report with performance analytics*
+
+### Audio Experience
+
+#### Multi-Speaker Dialogue System
+
+TutorBuddy features an innovative multi-speaker audio dialogue system that brings learning to life through emotional conversations between two characters:
+
+- **Buddy**: A wise, encouraging tutor with the "Kore" voice profile
+- **Sam**: A curious, energetic student with the "Puck" voice profile
+
+The dialogue system uses Gemini 2.5 Flash Native Audio (TTS) to generate natural, emotionally expressive conversations that explain complex topics in an engaging, conversational format.
+
+#### Sample Audio Dialogue
+
+<audio controls>
+  <source src="screenshots/buddy_dialogue.wav" type="audio/wav">
+  Your browser does not support the audio element.
+</audio>
+
+*Click the play button to listen to a sample Buddy & Sam dialogue about a learning topic*
 
 ### Demo Video
 
