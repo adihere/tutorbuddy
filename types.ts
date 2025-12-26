@@ -2,6 +2,7 @@ export interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: string;
+  explanation: string;
 }
 
 export type OutputMode = 'TEXT' | 'TEXT_AUDIO' | 'TEXT_AUDIO_IMAGES' | 'ALL';
@@ -15,6 +16,7 @@ export interface LearningContent {
   funFacts: string[];
   parentReport: ParentReport | null;
   outputMode: OutputMode;
+  ageGroup: number;
 }
 
 export interface ParentReport {

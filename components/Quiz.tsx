@@ -128,7 +128,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
         </div>
       </div>
 
-      <div className="space-y-3 mb-10">
+      <div className="space-y-3 mb-6">
         {currentQuestion.options.map((option, i) => {
           const isSelected = selectedOption === option;
           const isCorrect = option === currentQuestion.correctAnswer;
@@ -181,6 +181,21 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
           );
         })}
       </div>
+
+      {isAnswered && (
+        <div className="mb-10 animate-fadeIn bg-blue-50 rounded-3xl p-6 border border-blue-100 shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+             <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Buddy&backgroundColor=6366f1" className="w-16 h-16" alt="Buddy" />
+          </div>
+          <h4 className="text-sm font-black text-blue-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+            Buddy's Explanation
+          </h4>
+          <p className="text-slate-700 leading-relaxed font-medium relative z-10">
+            {currentQuestion.explanation}
+          </p>
+        </div>
+      )}
 
       <div className="flex gap-4">
         {!isAnswered ? (

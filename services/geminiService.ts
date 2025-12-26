@@ -57,6 +57,23 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
   return response.text || "";
 }
 
+/**
+ * Handles Socratic interaction during the lesson.
+ */
+export async function askBuddy(history: {role: 'user' | 'model', text: string}[], userMessage: string, topic: string, subject: string, ageGroup: number): Promise<string> {
+  const ai = getAI();
+  const chat = ai.chats.create({
+    model: 'gemini-2.5-flash-lite-latest',
+    config: {
+      systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. You are discussing ${topic} in the context of ${subject}. Use a Socratic method: instead of just giving answers, ask guided questions to help the student find the answer themselves when appropriate. Always be encouraging and age-appropriate.`
+    }
+  });
+
+  // Convert history to content parts if needed, or just send message
+  const response = await chat.sendMessage({ message: userMessage });
+  return response.text || "Buddy is thinking... try asking in a different way!";
+}
+
 async function generateDialogueText(tutorialText: string, topic: string, ageGroup: number): Promise<string> {
   const ai = getAI();
   const prompt = `
@@ -67,7 +84,7 @@ async function generateDialogueText(tutorialText: string, topic: string, ageGrou
     - Sam: A curious, energetic student who asks insightful questions.
     
     Guidelines:
-    - Use expressive markers for emotions (e.g., "(Sam, with wide eyes)", "(Buddy, chuckling warmly)", "(Sam, gasping in surprise)").
+    - Use expressive markers for emotions (e.g., "(Sam, with wide eyes)", "(Buddy, chuckling warmly)").
     - Focus on the coolest part of the lesson.
     - Keep it under 200 words.
     
@@ -157,7 +174,7 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite-latest',
-      contents: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}. Include 4 options and 1 correctAnswer.`,
+      contents: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}. Include 4 options and 1 correctAnswer. IMPORTANT: Also include an "explanation" field for each question that explains WHY the answer is correct in a friendly way for a student.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -167,9 +184,10 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
             properties: {
               question: { type: Type.STRING },
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
-              correctAnswer: { type: Type.STRING }
+              correctAnswer: { type: Type.STRING },
+              explanation: { type: Type.STRING }
             },
-            required: ["question", "options", "correctAnswer"]
+            required: ["question", "options", "correctAnswer", "explanation"]
           }
         }
       }

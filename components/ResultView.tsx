@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { LearningContent, QuizResult } from '../types.ts';
 import { ImageSlideshow } from './ImageSlideshow.tsx';
 import { Quiz } from './Quiz.tsx';
 import { ParentReportView } from './ParentReportView.tsx';
 import { marked } from 'marked';
-import { generateSpeech } from '../services/geminiService.ts';
+import { generateSpeech, askBuddy } from '../services/geminiService.ts';
 // @ts-ignore
 import JSZip from 'jszip';
 
@@ -74,8 +74,38 @@ export const ResultView: React.FC<ResultViewProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
+  // Chat State
+  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [isBuddyThinking, setIsBuddyThinking] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const hasAudio = content.outputMode !== 'TEXT';
   const hasImages = content.outputMode === 'TEXT_AUDIO_IMAGES';
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isBuddyThinking]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userInput.trim() || isBuddyThinking) return;
+
+    const userMsg = userInput;
+    setUserInput('');
+    setChatMessages(prev => [...prev, {role: 'user', text: userMsg}]);
+    setIsBuddyThinking(true);
+
+    try {
+      const buddyReply = await askBuddy(chatMessages, userMsg, content.topic, content.subject, content.ageGroup);
+      setChatMessages(prev => [...prev, {role: 'model', text: buddyReply}]);
+    } catch (err) {
+      console.error("Chat Error:", err);
+      setChatMessages(prev => [...prev, {role: 'model', text: "I'm having a little trouble connecting right now, but keep thinking about those great questions!"}]);
+    } finally {
+      setIsBuddyThinking(false);
+    }
+  };
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(content.explanation);
@@ -117,7 +147,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
     setIsAudioLoading(true);
     try {
-      const audioData = await generateSpeech(content.explanation, content.topic, 10);
+      const audioData = await generateSpeech(content.explanation, content.topic, content.ageGroup);
       if (!audioData) throw new Error("No audio data returned");
 
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -183,8 +213,9 @@ export const ResultView: React.FC<ResultViewProps> = ({
         <ParentReportView report={content.parentReport} quizResult={quizResult} />
       ) : (
         <div className="grid lg:grid-cols-12 gap-10">
-          <div className={`${hasImages ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-10`}>
-            <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200 border border-slate-100 flex flex-col h-[850px] overflow-hidden">
+          <div className="lg:col-span-7 space-y-10">
+            {/* Tutorial Section */}
+            <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200 border border-slate-100 flex flex-col h-[700px] overflow-hidden">
               <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex bg-slate-200 p-1 rounded-xl">
                   <button onClick={() => setViewMode('PREVIEW')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
@@ -225,9 +256,78 @@ export const ResultView: React.FC<ResultViewProps> = ({
                 )}
               </div>
             </section>
+
+            {/* Socratic Chat Section */}
+            <section className="bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[500px] border border-slate-800">
+               <div className="px-8 py-5 border-b border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                    </div>
+                    <div>
+                      <h3 className="text-white font-black tracking-tight">Ask Buddy</h3>
+                      <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Socratic Assistant</p>
+                    </div>
+                  </div>
+                  <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Discussion History: {chatMessages.length}</div>
+               </div>
+
+               <div className="flex-grow overflow-y-auto p-8 space-y-6 custom-scrollbar bg-slate-900/50">
+                  {chatMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                       <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Buddy&backgroundColor=6366f1" className="w-20 h-20 mb-4" alt="Buddy" />
+                       <p className="text-white font-medium max-w-[200px]">"I'm here to help you master this! Ask me anything about the lesson."</p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, idx) => (
+                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
+                        <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-sm font-medium ${
+                          msg.role === 'user' 
+                          ? 'bg-blue-600 text-white rounded-br-none' 
+                          : 'bg-white/10 text-slate-200 border border-white/5 rounded-bl-none'
+                        }`}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {isBuddyThinking && (
+                    <div className="flex justify-start animate-pulse">
+                      <div className="bg-white/10 text-slate-400 px-6 py-4 rounded-3xl text-sm font-bold flex items-center gap-2">
+                        Buddy is thinking...
+                        <div className="flex gap-1">
+                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></span>
+                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+               </div>
+
+               <form onSubmit={handleSendMessage} className="p-6 bg-slate-950 border-t border-white/10">
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      value={userInput}
+                      onChange={(e) => setUserInput(e.target.value)}
+                      placeholder="Ask Buddy a question..."
+                      className="w-full bg-white/5 border-2 border-white/10 rounded-2xl px-6 py-4 text-white focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 outline-none transition-all pr-24"
+                    />
+                    <button 
+                      type="submit"
+                      disabled={isBuddyThinking || !userInput.trim()}
+                      className="absolute right-2 top-2 bottom-2 px-6 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 transition-all"
+                    >
+                      Send
+                    </button>
+                  </div>
+               </form>
+            </section>
           </div>
 
-          <div className={`${hasImages ? 'lg:col-span-5' : 'hidden'} space-y-8`}>
+          <div className="lg:col-span-5 space-y-8">
             {hasImages && (
               <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
                 <div className="flex justify-between items-center mb-4 px-2">

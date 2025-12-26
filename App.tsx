@@ -52,6 +52,7 @@ const App: React.FC = () => {
       const initialContent: LearningContent = {
         topic: userTopic,
         subject: subject,
+        ageGroup: ageGroup,
         explanation: tutorial,
         quizQuestions: [],
         images: (outputMode === 'TEXT_AUDIO_IMAGES') ? 'LOADING' as any : null,
