@@ -11,8 +11,9 @@ export interface LearningContent {
   images: string[] | null;
   quizQuestions: QuizQuestion[];
   topic: string;
-  subject: string; // Added subject for context
+  subject: string;
   funFacts: string[];
+  parentReport: ParentReport | null;
 }
 
 export interface ParentReport {

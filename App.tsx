@@ -11,6 +11,7 @@ import {
   generateQuiz,
   generateImages,
   generateFunFacts,
+  generateParentReport,
   validateTopicSafety
 } from './services/geminiService.ts';
 
@@ -60,29 +61,34 @@ const App: React.FC = () => {
       const quizPromise = generateQuiz(userTopic, subject, ageGroup);
       const imagesPromise = generateImages(userTopic, subject, ageGroup);
       const factsPromise = generateFunFacts(userTopic, subject, ageGroup);
+      const reportPromise = generateParentReport(userTopic, subject, ageGroup);
       
       let videoUrl: string | null = null;
       let quiz: any[] = [];
       let images: string[] = [];
       let facts: string[] = [];
+      let report: any = null;
 
       if (videoEnabled) {
         setLoadingStep(`Finalizing cinematic visualizer...`);
-        const [quizRes, imagesRes, factsRes, videoRes] = await Promise.all([
+        const [quizRes, imagesRes, factsRes, reportRes, videoRes] = await Promise.all([
           quizPromise,
           imagesPromise,
           factsPromise,
+          reportPromise,
           generateVideo(userTopic, subject, ageGroup)
         ]);
         quiz = quizRes;
         images = imagesRes;
         facts = factsRes;
+        report = reportRes;
         videoUrl = videoRes;
       } else {
-        const [quizRes, imagesRes, factsRes] = await Promise.all([quizPromise, imagesPromise, factsPromise]);
+        const [quizRes, imagesRes, factsRes, reportRes] = await Promise.all([quizPromise, imagesPromise, factsPromise, reportPromise]);
         quiz = quizRes;
         images = imagesRes;
         facts = factsRes;
+        report = reportRes;
       }
 
       setContent({
@@ -92,7 +98,8 @@ const App: React.FC = () => {
         quizQuestions: quiz,
         videoUrl: videoUrl,
         images: images,
-        funFacts: facts
+        funFacts: facts,
+        parentReport: report
       });
       setState('RESULT');
     } catch (err: any) {
