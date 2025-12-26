@@ -119,7 +119,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
               
               <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 w-64 p-4 bg-slate-900 text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 shadow-2xl font-medium leading-relaxed">
                 <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
-                <strong>Privacy First:</strong> Your API key is used for secure generation and never stored. We strictly adhere to BYOK standards.
+                <strong>Bring Your Own Key (BYOK):</strong> Your API key is used for secure generation and never stored. We strictly adhere to privacy-focused standards.
               </div>
             </div>
           </div>

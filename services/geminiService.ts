@@ -1,6 +1,6 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { QuizQuestion, ParentReport } from "./types.ts";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { QuizQuestion, ParentReport } from "../types.ts";
 
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -17,7 +17,7 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash-lite-latest',
       contents: `Evaluate safety for topic "${topic}" (Subject: ${subject}, Age: ${ageGroup}). No politics/adult themes.`,
       config: {
         responseMimeType: "application/json",
@@ -41,10 +41,81 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
 export async function generateTutorial(topic: string, subject: string, ageGroup: number): Promise<string> {
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.5-flash-lite-latest',
     contents: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}". Use Markdown.`,
   });
   return response.text || "";
+}
+
+/**
+ * Generates an emotional multi-speaker dialogue based on the tutorial content.
+ */
+async function generateDialogueText(tutorialText: string, topic: string, ageGroup: number): Promise<string> {
+  const ai = getAI();
+  const prompt = `
+    Transform the following tutorial about "${topic}" for a ${ageGroup}-year-old into a short, high-energy, and emotional educational dialogue.
+    Characters:
+    - Buddy: A wise, encouraging, and enthusiastic tutor.
+    - Sam: A curious, energetic student who asks great questions.
+    
+    Guidelines:
+    - Use expressive markers for emotions (e.g., "(Sam, excitedly)", "(Buddy, thoughtfully)", "(Buddy, with wonder)").
+    - Keep it under 200 words.
+    - Make it sound like a snippet from a fun educational podcast.
+    
+    Tutorial Content: ${tutorialText.slice(0, 1500)}
+    
+    Format output exactly like this:
+    Buddy: (enthusiastically) [Text]
+    Sam: (curiously) [Text]
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-lite-latest',
+    contents: prompt,
+  });
+
+  return response.text || "";
+}
+
+export async function generateSpeech(tutorialText: string, topic: string, ageGroup: number): Promise<string | null> {
+  try {
+    const ai = getAI();
+    
+    // Stage 1: Generate a vibrant dialogue text using Flash-Lite
+    const dialogue = await generateDialogueText(tutorialText, topic, ageGroup);
+    
+    // Stage 2: Convert to multi-speaker audio using the TTS model
+    const ttsPrompt = `TTS the following conversation between Buddy and Sam with natural emotions and perfect pacing:
+    ${dialogue}`;
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: ttsPrompt }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          multiSpeakerVoiceConfig: {
+            speakerVoiceConfigs: [
+              {
+                speaker: 'Buddy',
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+              },
+              {
+                speaker: 'Sam',
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
+              }
+            ]
+          }
+        },
+      },
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+  } catch (err) {
+    console.error("Multi-Speaker TTS Error:", err);
+    return null;
+  }
 }
 
 export async function generateVideo(topic: string, subject: string, ageGroup: number): Promise<string | null> {
@@ -65,8 +136,8 @@ export async function generateVideo(topic: string, subject: string, ageGroup: nu
       attempts++;
     }
 
-    const uri = operation.response?.generatedVideos?.[0]?.video?.uri;
-    return uri ? `${uri}&key=${process.env.API_KEY}` : null;
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+    return downloadLink ? `${downloadLink}&key=${process.env.API_KEY}` : null;
   } catch (err) {
     console.error("Veo Video Error:", err);
     return null;
@@ -103,7 +174,7 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash-lite-latest',
       contents: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}.`,
       config: {
         responseMimeType: "application/json",
@@ -131,7 +202,7 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash-lite-latest',
       contents: `${SAFETY_DIRECTIVE} Generate 3-5 unique, mind-blowing fun facts about "${topic}" in the context of ${subject} for a ${ageGroup}-year-old. Keep each fact under 20 words.`,
       config: {
         responseMimeType: "application/json",
@@ -151,7 +222,7 @@ export async function generateParentReport(topic: string, subject: string, ageGr
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash-lite-latest',
       contents: `You are an educational consultant for parents. Topic: "${topic}" (${subject}) for a ${ageGroup}-year-old. 
       Generate a professional, encouraging report for the parent.
       1. Summary: What was taught and its value.

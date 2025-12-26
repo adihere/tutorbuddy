@@ -5,6 +5,8 @@ export interface QuizQuestion {
   correctAnswer: string;
 }
 
+export type OutputMode = 'TEXT' | 'TEXT_AUDIO' | 'TEXT_AUDIO_IMAGES' | 'ALL';
+
 export interface LearningContent {
   explanation: string;
   videoUrl: string | null;
@@ -14,6 +16,7 @@ export interface LearningContent {
   subject: string;
   funFacts: string[];
   parentReport: ParentReport | null;
+  outputMode: OutputMode;
 }
 
 export interface ParentReport {

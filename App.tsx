@@ -3,7 +3,7 @@ import { Layout } from './components/Layout.tsx';
 import { TutorForm } from './components/TutorForm.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
 import { ResultView } from './components/ResultView.tsx';
-import { AppState, LearningContent } from './types.ts';
+import { AppState, LearningContent, OutputMode } from './types.ts';
 import {
   generateTutorial,
   generateVideo,
@@ -35,7 +35,7 @@ const App: React.FC = () => {
     userTopic: string,
     subject: string,
     ageGroup: number,
-    videoEnabled: boolean
+    outputMode: OutputMode
   ) => {
     try {
       await checkAndSelectKey();
@@ -54,15 +54,17 @@ const App: React.FC = () => {
       const tutorial = await generateTutorial(userTopic, subject, ageGroup);
 
       // Transition to ResultView immediately with Tutorial
+      // Quiz, Fun Facts, and Parent Report are now available for ALL modes
       const initialContent: LearningContent = {
         topic: userTopic,
         subject: subject,
         explanation: tutorial,
         quizQuestions: [],
-        videoUrl: videoEnabled ? 'LOADING' : null,
-        images: 'LOADING' as any,
+        videoUrl: outputMode === 'ALL' ? 'LOADING' : null,
+        images: (outputMode === 'ALL' || outputMode === 'TEXT_AUDIO_IMAGES') ? 'LOADING' as any : null,
         funFacts: 'LOADING' as any,
-        parentReport: 'LOADING' as any
+        parentReport: 'LOADING' as any,
+        outputMode: outputMode
       };
       
       setContent(initialContent);
@@ -73,13 +75,17 @@ const App: React.FC = () => {
         setContent(prev => prev ? { ...prev, ...update } : null);
       };
 
-      // Fire off and update as they resolve
+      // Core features available for ALL experience levels
       generateQuiz(userTopic, subject, ageGroup).then(quiz => updateContent({ quizQuestions: quiz }));
-      generateImages(userTopic, subject, ageGroup).then(images => updateContent({ images }));
       generateFunFacts(userTopic, subject, ageGroup).then(facts => updateContent({ funFacts: facts }));
       generateParentReport(userTopic, subject, ageGroup).then(report => updateContent({ parentReport: report }));
       
-      if (videoEnabled) {
+      // Conditionally gated visual assets
+      if (outputMode === 'ALL' || outputMode === 'TEXT_AUDIO_IMAGES') {
+        generateImages(userTopic, subject, ageGroup).then(images => updateContent({ images }));
+      }
+      
+      if (outputMode === 'ALL') {
         generateVideo(userTopic, subject, ageGroup).then(videoUrl => updateContent({ videoUrl }));
       }
 
