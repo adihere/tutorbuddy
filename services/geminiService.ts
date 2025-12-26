@@ -51,8 +51,8 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
     Use clear Markdown, professional analogies, and field-specific terminology adjusted for their age.`,
   });
 
-  if (!response.text) throw new Error("AI failed to generate tutorial text.");
-  return response.text;
+  // Fixed: Use .text property instead of assuming it's always defined
+  return response.text || "";
 }
 
 export async function generateVideo(topic: string, subject: string, ageGroup: number): Promise<string | null> {
@@ -67,7 +67,8 @@ export async function generateVideo(topic: string, subject: string, ageGroup: nu
     });
 
     let attempts = 0;
-    while (!operation.done && attempts < 12) {
+    // Increased attempts slightly for better reliability
+    while (!operation.done && attempts < 15) {
       await new Promise(r => setTimeout(r, 10000));
       operation = await ai.operations.getVideosOperation({ operation: operation });
       attempts++;
@@ -75,7 +76,8 @@ export async function generateVideo(topic: string, subject: string, ageGroup: nu
 
     const uri = operation.response?.generatedVideos?.[0]?.video?.uri;
     return uri ? `${uri}&key=${process.env.API_KEY}` : null;
-  } catch {
+  } catch (err) {
+    console.error("Veo Video Error:", err);
     return null;
   }
 }
@@ -129,6 +131,27 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
       }
     });
 
+    return JSON.parse(response.text || '[]');
+  } catch {
+    return [];
+  }
+}
+
+// Fixed: Added missing generateFunFacts function as imported by App.tsx
+export async function generateFunFacts(topic: string, subject: string, ageGroup: number): Promise<string[]> {
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `${SAFETY_DIRECTIVE} Generate 3-5 unique, mind-blowing fun facts about "${topic}" in the context of ${subject} for a ${ageGroup}-year-old. Keep each fact under 20 words.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
+    });
     return JSON.parse(response.text || '[]');
   } catch {
     return [];

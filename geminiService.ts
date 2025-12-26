@@ -125,3 +125,23 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
     return [];
   }
 }
+
+export async function generateFunFacts(topic: string, subject: string, ageGroup: number): Promise<string[]> {
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `${SAFETY_DIRECTIVE} Generate 3-5 unique, mind-blowing fun facts about "${topic}" in the context of ${subject} for a ${ageGroup}-year-old. Keep each fact under 20 words.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
+    });
+    return JSON.parse(response.text || '[]');
+  } catch {
+    return [];
+  }
+}

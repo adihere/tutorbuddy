@@ -161,6 +161,28 @@ export const ResultView: React.FC<ResultViewProps> = ({
             </section>
           )}
 
+          {/* Fun Facts Section */}
+          {content.funFacts && content.funFacts.length > 0 && (
+            <section className="bg-violet-50 rounded-[2.5rem] p-8 border border-violet-100 shadow-xl shadow-violet-50/50">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-violet-600 rounded-xl text-white">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Did You Know?</h3>
+              </div>
+              <ul className="space-y-4">
+                {content.funFacts.map((fact, idx) => (
+                  <li key={idx} className="flex gap-4 p-4 bg-white/60 rounded-2xl border border-violet-100/50 hover:bg-white transition-colors group">
+                    <span className="text-violet-600 font-black text-sm mt-0.5">#{idx + 1}</span>
+                    <p className="text-slate-700 font-medium leading-relaxed text-sm group-hover:text-slate-950 transition-colors">{fact}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section className="bg-emerald-50 rounded-[2.5rem] p-8 border border-emerald-100 shadow-xl shadow-emerald-50/50">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-emerald-600 rounded-xl text-white">

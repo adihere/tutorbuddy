@@ -10,6 +10,7 @@ import {
   generateVideo,
   generateQuiz,
   generateImages,
+  generateFunFacts,
   validateTopicSafety
 } from './services/geminiService.ts';
 
@@ -54,29 +55,34 @@ const App: React.FC = () => {
       const tutorial = await generateTutorial(userTopic, subject, ageGroup);
 
       // Phase 2: Asset Generation (Parallelized for performance)
-      setLoadingStep(`Rendering visuals and mastery check...`);
+      setLoadingStep(`Orchestrating multi-modal assets...`);
       
       const quizPromise = generateQuiz(userTopic, subject, ageGroup);
       const imagesPromise = generateImages(userTopic, subject, ageGroup);
+      const factsPromise = generateFunFacts(userTopic, subject, ageGroup);
       
       let videoUrl: string | null = null;
       let quiz: any[] = [];
       let images: string[] = [];
+      let facts: string[] = [];
 
       if (videoEnabled) {
-        setLoadingStep(`Finalizing cinematic ${subject} visualizer...`);
-        const [quizRes, imagesRes, videoRes] = await Promise.all([
+        setLoadingStep(`Finalizing cinematic visualizer...`);
+        const [quizRes, imagesRes, factsRes, videoRes] = await Promise.all([
           quizPromise,
           imagesPromise,
+          factsPromise,
           generateVideo(userTopic, subject, ageGroup)
         ]);
         quiz = quizRes;
         images = imagesRes;
+        facts = factsRes;
         videoUrl = videoRes;
       } else {
-        const [quizRes, imagesRes] = await Promise.all([quizPromise, imagesPromise]);
+        const [quizRes, imagesRes, factsRes] = await Promise.all([quizPromise, imagesPromise, factsPromise]);
         quiz = quizRes;
         images = imagesRes;
+        facts = factsRes;
       }
 
       setContent({
@@ -86,7 +92,7 @@ const App: React.FC = () => {
         quizQuestions: quiz,
         videoUrl: videoUrl,
         images: images,
-        funFacts: [] 
+        funFacts: facts
       });
       setState('RESULT');
     } catch (err: any) {
