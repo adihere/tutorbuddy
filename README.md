@@ -1,6 +1,6 @@
 # 🧠 TutorBuddy: Topic Mastery Platform
 
-**TutorBuddy** is a world-class, agentic tutoring application designed to empower learners aged 5-17. By leveraging Google’s latest Gemini 3 Flash models, it transforms simple queries into a complete **Mastery Canvas**—comprising structured lessons, emotional audio dialogues, and adaptive quizzes.
+**TutorBuddy** is a world-class, intelligent tutoring application designed to empower learners aged 5-17. By leveraging Google's latest Gemini 3 Flash models, it transforms simple queries into a complete **Mastery Canvas**—comprising structured lessons, emotional audio dialogues, and adaptive quizzes.
 
 ## 🚀 Key Features
 
