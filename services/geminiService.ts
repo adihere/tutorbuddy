@@ -37,14 +37,12 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
   }
 }
 
-export async function generateTutorial(topic: string, subject: string, ageGroup: number): Promise<string> {
+export async function generateTutorial(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<string> {
   const ai = getAI();
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-lite-latest',
-    contents: `
-      ${SAFETY_DIRECTIVE}
-      Expert ${subject} tutor for age ${ageGroup} on "${topic}".
-      
+  
+  const promptParts: any[] = [
+    { text: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}".` },
+    { text: `
       CRITICAL FORMATTING INSTRUCTIONS for SUPERIOR READABILITY:
       - Use clear, descriptive Markdown headers (## and ###).
       - Keep paragraphs short (3-4 sentences maximum).
@@ -52,14 +50,26 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
       - Add a "Concept Spotlight" blockquote for the most important part.
       - Use bold text for essential terminology.
       - Ensure a smooth flow from "What is it?" to "Why does it matter?"
-    `,
+    ` }
+  ];
+
+  if (contextImage) {
+    promptParts.push({ text: "IMPORTANT: I am providing an image of my school classwork. Please prioritize and align your explanation with the definitions, methods, and specific focus areas shown in this image to help me with my specific homework/curriculum." });
+    promptParts.push({
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: contextImage.split(',')[1]
+      }
+    });
+  }
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-lite-latest',
+    contents: { parts: promptParts },
   });
   return response.text || "";
 }
 
-/**
- * Handles Socratic interaction during the lesson.
- */
 export async function askBuddy(history: {role: 'user' | 'model', text: string}[], userMessage: string, topic: string, subject: string, ageGroup: number): Promise<string> {
   const ai = getAI();
   const chat = ai.chats.create({
@@ -69,7 +79,6 @@ export async function askBuddy(history: {role: 'user' | 'model', text: string}[]
     }
   });
 
-  // Convert history to content parts if needed, or just send message
   const response = await chat.sendMessage({ message: userMessage });
   return response.text || "Buddy is thinking... try asking in a different way!";
 }
@@ -169,12 +178,26 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
   }
 }
 
-export async function generateQuiz(topic: string, subject: string, ageGroup: number): Promise<QuizQuestion[]> {
+export async function generateQuiz(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<QuizQuestion[]> {
   try {
     const ai = getAI();
+    const promptParts: any[] = [
+      { text: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}. Include 4 options and 1 correctAnswer. IMPORTANT: Also include an "explanation" field for each question that explains WHY the answer is correct in a friendly way for a student.` }
+    ];
+
+    if (contextImage) {
+      promptParts.push({ text: "Personalize the quiz questions based on the specific concepts and problems shown in this student's classwork image." });
+      promptParts.push({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: contextImage.split(',')[1]
+        }
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite-latest',
-      contents: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}. Include 4 options and 1 correctAnswer. IMPORTANT: Also include an "explanation" field for each question that explains WHY the answer is correct in a friendly way for a student.`,
+      contents: { parts: promptParts },
       config: {
         responseMimeType: "application/json",
         responseSchema: {

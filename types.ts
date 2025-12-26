@@ -17,6 +17,7 @@ export interface LearningContent {
   parentReport: ParentReport | null;
   outputMode: OutputMode;
   ageGroup: number;
+  contextImage?: string; // Base64 image of classwork
 }
 
 export interface ParentReport {

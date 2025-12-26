@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { OutputMode } from '../types.ts';
 
 interface TutorFormProps {
-  onSubmit: (topic: string, subject: string, ageGroup: number, outputMode: OutputMode) => void;
+  onSubmit: (topic: string, subject: string, ageGroup: number, outputMode: OutputMode, contextImage?: string) => void;
   isLoading: boolean;
 }
 
@@ -11,6 +11,8 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
   const [subject, setSubject] = useState('Science');
   const [ageGroup, setAgeGroup] = useState<number>(10);
   const [outputMode, setOutputMode] = useState<OutputMode>('TEXT_AUDIO_IMAGES');
+  const [contextImage, setContextImage] = useState<string | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subjects = ["Math", "Science", "Latin", "English", "Geography"];
   const ages = Array.from({ length: 13 }, (_, i) => i + 5); // 5 to 17
@@ -18,8 +20,24 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (topic.trim() && !isLoading) {
-      onSubmit(topic, subject, ageGroup, outputMode);
+      onSubmit(topic, subject, ageGroup, outputMode, contextImage);
     }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setContextImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearImage = () => {
+    setContextImage(undefined);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const modeOptions: { id: OutputMode; title: string; desc: string; icon: React.ReactNode; color: string; disabled?: boolean }[] = [
@@ -102,6 +120,51 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Scan Classwork Input */}
+        <div className="bg-slate-50 p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200">
+           <div className="flex flex-col items-center justify-center text-center">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Curriculum Context (Optional)</label>
+              {!contextImage ? (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="group cursor-pointer flex flex-col items-center p-8 transition-all hover:scale-105"
+                >
+                  <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:border-blue-200 transition-colors mb-4">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <span className="text-slate-600 font-bold">Scan school classwork</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Add OCR context to align Buddy with your teacher</span>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={handleImageChange}
+                  />
+                </div>
+              ) : (
+                <div className="relative group">
+                  <img 
+                    src={contextImage} 
+                    className="h-32 rounded-2xl shadow-md border-4 border-white object-cover" 
+                    alt="Classwork preview" 
+                  />
+                  <button 
+                    onClick={clearImage}
+                    type="button"
+                    className="absolute -top-3 -right-3 w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-rose-600 transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                  <div className="mt-3 text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1 justify-center">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                    Context Loaded
+                  </div>
+                </div>
+              )}
+           </div>
         </div>
 
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm max-w-4xl mx-auto">

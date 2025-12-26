@@ -33,7 +33,8 @@ const App: React.FC = () => {
     userTopic: string,
     subject: string,
     ageGroup: number,
-    outputMode: OutputMode
+    outputMode: OutputMode,
+    contextImage?: string
   ) => {
     try {
       await checkAndSelectKey();
@@ -47,7 +48,7 @@ const App: React.FC = () => {
       }
 
       setLoadingStep(`Drafting your ${subject} lesson...`);
-      const tutorial = await generateTutorial(userTopic, subject, ageGroup);
+      const tutorial = await generateTutorial(userTopic, subject, ageGroup, contextImage);
 
       const initialContent: LearningContent = {
         topic: userTopic,
@@ -58,7 +59,8 @@ const App: React.FC = () => {
         images: (outputMode === 'TEXT_AUDIO_IMAGES') ? 'LOADING' as any : null,
         funFacts: 'LOADING' as any,
         parentReport: 'LOADING' as any,
-        outputMode: outputMode
+        outputMode: outputMode,
+        contextImage: contextImage
       };
       
       setContent(initialContent);
@@ -68,7 +70,7 @@ const App: React.FC = () => {
         setContent(prev => prev ? { ...prev, ...update } : null);
       };
 
-      generateQuiz(userTopic, subject, ageGroup).then(quiz => updateContent({ quizQuestions: quiz }));
+      generateQuiz(userTopic, subject, ageGroup, contextImage).then(quiz => updateContent({ quizQuestions: quiz }));
       generateFunFacts(userTopic, subject, ageGroup).then(facts => updateContent({ funFacts: facts }));
       generateParentReport(userTopic, subject, ageGroup).then(report => updateContent({ parentReport: report }));
       
