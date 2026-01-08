@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { LearningContent, QuizResult } from '../types.ts';
 import { ImageSlideshow } from './ImageSlideshow.tsx';
@@ -93,6 +94,10 @@ export const ResultView: React.FC<ResultViewProps> = ({
   onReset,
   onDownloadTutorial
 }) => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const [viewMode, setViewMode] = useState<'PREVIEW' | 'RAW'>('PREVIEW');
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -393,14 +398,16 @@ export const ResultView: React.FC<ResultViewProps> = ({
         </div>
 
         <div className="lg:col-span-5 space-y-8">
-          <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
-             <div className="flex justify-between items-center mb-4 px-2">
-               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Mastery Gallery</h3>
-             </div>
-             <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative">
-                {isImagesLoading ? <div className="absolute inset-0 shimmer"></div> : <ImageSlideshow images={content.images || []} topic={content.topic} />}
-             </div>
-          </section>
+          {hasImages && (
+            <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
+               <div className="flex justify-between items-center mb-4 px-2">
+                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Mastery Gallery</h3>
+               </div>
+               <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative">
+                  {isImagesLoading ? <div className="absolute inset-0 shimmer"></div> : <ImageSlideshow images={content.images || []} topic={content.topic} />}
+               </div>
+            </section>
+          )}
 
           <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
