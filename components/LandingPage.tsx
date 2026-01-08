@@ -81,7 +81,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
-            Gemini 3 Flash Powered
+            Gemini 3 Powered
           </div>
           
           <h1 className="text-5xl lg:text-7xl font-black text-slate-950 leading-tight tracking-tighter">
