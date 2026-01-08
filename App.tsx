@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import { Layout } from './components/Layout.tsx';
 import { TutorForm } from './components/TutorForm.tsx';
@@ -21,6 +22,10 @@ const App: React.FC = () => {
   const formRef = useRef<HTMLDivElement>(null);
 
   const checkAndSelectKey = async () => {
+    // @ts-ignore
+    if (typeof window.aistudio === 'undefined') {
+      throw new Error("API Key Manager not found. Please ensure you are logged in and have selected a valid Gemini API key to start learning.");
+    }
     // @ts-ignore
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
@@ -140,7 +145,7 @@ const App: React.FC = () => {
           <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-8 text-4xl">🛡️</div>
           <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">System Message</h2>
           <p className="text-slate-500 mb-10 text-lg leading-relaxed">{error}</p>
-          <button onClick={resetSession} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl">Try Another Topic</button>
+          <button onClick={resetSession} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl">Try Again</button>
         </div>
       )}
     </Layout>
