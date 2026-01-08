@@ -1,6 +1,6 @@
-# 🧠 TutorBuddy: Topic Mastery Platform
+# 🧠 TutorBuddy: Agentic Mastery Platform
 
-**TutorBuddy** is a world-class, intelligent tutoring application designed to empower learners aged 5-17. By leveraging Google's latest Gemini 3 Flash models, it transforms simple queries into a complete **Mastery Canvas**—comprising structured lessons, emotional audio dialogues, and adaptive quizzes.
+**TutorBuddy** is a world-class, agentic tutoring application designed to empower learners aged 5-17. By leveraging Google’s latest Gemini 3 Flash models, it transforms simple queries into a complete **Mastery Canvas**—comprising structured lessons, emotional audio dialogues, and adaptive quizzes.
 
 ## 🚀 Key Features
 
@@ -25,57 +25,14 @@ The platform provides specialized tutoring across academic disciplines:
 | Component | Model / Technology | Purpose |
 | :--- | :--- | :--- |
 | **Reasoning & Text** | `gemini-3-flash-preview` | Tutorial, Quiz, and Report generation |
-| **Audio (TTS)** | `gemini-2.5-flash-preview-tts` | Multi-speaker emotional educational dialogues (Buddy & Sam) |
+| **Audio (TTS)** | `gemini-2.5-flash-preview-tts` | Multi-speaker emotional educational dialogues |
 | **Image Generation** | `gemini-2.5-flash-image` | 5-part educational visual galleries |
 | **Safety Logic** | `gemini-3-flash-preview` | Input validation |
-| **Audio Processing** | Web Audio API | Real-time audio playback and WAV conversion |
 | **Frontend** | React 19 + Tailwind CSS | Responsive, high-performance UI |
 
 ## 🔑 Setup & Privacy
 
 TutorBuddy operates on a **BYOK (Bring Your Own Key)** model. API keys are handled securely via the provided studio interface.
-
-## 📸 Sample Output
-
-### Application Screenshots
-
-![TutorBuddy Screenshot 1](screenshots/tutorbud-img1.png)
-*Initial query input and topic selection interface*
-
-![TutorBuddy Screenshot 2](screenshots/tutorbud-img2.png)
-*Generated tutorial content with structured markdown lessons*
-
-![TutorBuddy Screenshot 3](screenshots/tutorbud-img3.png)
-*Interactive quiz component for mastery validation*
-
-![TutorBuddy Screenshot 4](screenshots/tutorbud-img4.png)
-*Comprehensive learning report with performance analytics*
-
-### Audio Experience
-
-#### Multi-Speaker Dialogue System
-
-TutorBuddy features an innovative multi-speaker audio dialogue system that brings learning to life through emotional conversations between two characters:
-
-- **Buddy**: A wise, encouraging tutor with the "Kore" voice profile
-- **Sam**: A curious, energetic student with the "Puck" voice profile
-
-The dialogue system uses Gemini 2.5 Flash Native Audio (TTS) to generate natural, emotionally expressive conversations that explain complex topics in an engaging, conversational format.
-
-#### Sample Audio Dialogue
-
-<audio controls>
-  <source src="screenshots/buddy_dialogue.wav" type="audio/wav">
-  Your browser does not support the audio element.
-</audio>
-
-*Click the play button to listen to a sample Buddy & Sam dialogue about a learning topic*
-
-### Demo Video
-
-[![TutorBuddy Demo Video](screenshots/tutorbud-img1.png)](screenshots/tutorbuddy-v4.mp4)
-
-*Click the image above to watch a complete demonstration of TutorBuddy in action*
 
 ---
 *Developed by Senior Frontend Engineering Team*
