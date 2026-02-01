@@ -51,12 +51,6 @@ const MOCK_DEEP_DIVE_SUGGESTIONS = [
   "Chlorophyll", "Calvin Cycle", "Stomata"
 ];
 
-const MOCK_THINKING_RESPONSE = `<thinking>
-1. User asked about process.
-2. I should explain simply using the factory analogy.
-</thinking>
-It's like a solar-powered sugar factory!`;
-
 test.describe('TutorBuddy Smoke Tests', () => {
 
   test.beforeEach(async ({ page }) => {
@@ -89,9 +83,6 @@ test.describe('TutorBuddy Smoke Tests', () => {
       } else if (textContent.includes("Identify 3 fascinating sub-topics")) {
          responseText = JSON.stringify(MOCK_DEEP_DIVE_SUGGESTIONS);
          isJson = true;
-      } else if (textContent.includes("before answering, you MUST think step-by-step")) {
-         // Chat request
-         responseText = MOCK_THINKING_RESPONSE;
       } else if (textContent.includes("Convert this lesson about")) {
         responseText = "Hey Sam, did you know plants eat light? Wow Buddy that is cool!";
       } else if (textContent.includes("TTS conversation")) {
@@ -224,7 +215,7 @@ test.describe('TutorBuddy Smoke Tests', () => {
     await expect(page.getByRole('heading', { name: 'Deep Dive: Chlorophyll' })).not.toBeVisible();
   });
 
-  test('Chat Interface with Chain-of-Thought works', async ({ page }) => {
+  test('Chat Interface works', async ({ page }) => {
     await page.getByPlaceholder('e.g., Quantum Physics').fill('Photosynthesis');
     await page.getByRole('button', { name: 'Generate Mastery Canvas' }).click();
     await expect(page.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible();
@@ -234,15 +225,5 @@ test.describe('TutorBuddy Smoke Tests', () => {
     await page.getByRole('button', { name: 'Send' }).click();
 
     await expect(page.getByText('How does it work?', { exact: true })).toBeVisible();
-    
-    // Check Chain of Thought toggle button exists
-    await expect(page.getByRole('button', { name: 'Show AI Thought Process' })).toBeVisible();
-    
-    // Toggle it
-    await page.getByRole('button', { name: 'Show AI Thought Process' }).click();
-    await expect(page.getByText('I should explain simply using the factory analogy')).toBeVisible();
-
-    // Check final response
-    await expect(page.getByText("It's like a solar-powered sugar factory!")).toBeVisible();
   });
 });

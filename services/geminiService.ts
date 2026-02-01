@@ -119,10 +119,7 @@ export async function askBuddy(history: {role: 'user' | 'model', text: string}[]
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise tutor for age ${ageGroup}.
-        IMPORTANT: Before answering, you MUST think step-by-step about how to explain this simply. 
-        Wrap your thinking process in <thinking>...</thinking> tags. 
-        Then provide your clear, friendly response.`
+        systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise tutor for age ${ageGroup}.`
       }
     });
     

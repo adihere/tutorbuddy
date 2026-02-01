@@ -90,8 +90,18 @@ export const ResultView: React.FC<ResultViewProps> = ({
   onReset,
   onDownloadTutorial
 }) => {
+  const topRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
+    // Immediate scroll to top
     window.scrollTo(0, 0);
+    
+    // Ensure focus and scroll persists after layout with a slight delay
+    const timer = setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const [viewMode, setViewMode] = useState<'PREVIEW' | 'RAW'>('PREVIEW');
@@ -111,7 +121,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
   const [userInput, setUserInput] = useState('');
   const [isBuddyThinking, setIsBuddyThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const [expandedThoughts, setExpandedThoughts] = useState<Record<number, boolean>>({});
 
   // Deep Dive State
   const [deepDiveSuggestions, setDeepDiveSuggestions] = useState<string[]>([]);
@@ -138,20 +147,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
     };
   }, []);
 
-  const toggleThought = (idx: number) => {
-    setExpandedThoughts(prev => ({
-      ...prev,
-      [idx]: !prev[idx]
-    }));
-  };
-
-  const parseMessage = (text: string) => {
-    const thinkingMatch = text.match(/<thinking>([\s\S]*?)<\/thinking>/);
-    const thinking = thinkingMatch ? thinkingMatch[1].trim() : null;
-    const cleanText = text.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
-    return { thinking, cleanText };
-  };
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim() || isBuddyThinking) return;
@@ -161,7 +156,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
     setChatMessages(prev => [...prev, {role: 'user', text: userMsg}]);
     setIsBuddyThinking(true);
     try {
-      // We pass the raw messages history, but for the UI we display the parsed versions
       const buddyReply = await askBuddy(chatMessages, userMsg, content.topic, content.subject, content.ageGroup);
       setChatMessages(prev => [...prev, {role: 'model', text: buddyReply}]);
     } catch (err) {
@@ -310,7 +304,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-12 pb-32 animate-fadeIn relative">
+    <div ref={topRef} className="max-w-7xl mx-auto space-y-12 pb-32 animate-fadeIn relative">
        
       {/* Deep Dive Modal */}
       {selectedDeepDive && (
@@ -462,35 +456,14 @@ export const ResultView: React.FC<ResultViewProps> = ({
                   </div>
                 ) : (
                   chatMessages.map((msg, idx) => {
-                    const { thinking, cleanText } = parseMessage(msg.text);
-                    const isExpanded = expandedThoughts[idx];
-
                     return (
                       <div key={idx} className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-fadeIn`}>
-                         
-                         {msg.role === 'model' && thinking && (
-                           <div className="max-w-[85%] mb-1">
-                              <button 
-                                onClick={() => toggleThought(idx)}
-                                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-widest flex items-center gap-2 mb-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 transition-colors"
-                              >
-                                {isExpanded ? 'Hide Thought Process' : 'Show AI Thought Process'}
-                                <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                              </button>
-                              {isExpanded && (
-                                <div className="bg-slate-950/50 p-4 rounded-2xl border border-indigo-500/20 text-indigo-200 text-xs font-mono leading-relaxed mb-2 animate-fadeIn">
-                                  {thinking}
-                                </div>
-                              )}
-                           </div>
-                         )}
-
                          <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-sm font-medium ${
                             msg.role === 'user' 
                             ? 'bg-blue-600 text-white rounded-br-none' 
                             : 'bg-white/10 text-slate-200 border border-white/5 rounded-bl-none'
                           }`}>
-                            {cleanText || msg.text}
+                            {msg.text}
                           </div>
                       </div>
                     );
