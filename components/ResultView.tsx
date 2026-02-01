@@ -95,6 +95,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   const [viewMode, setViewMode] = useState<'PREVIEW' | 'RAW'>('PREVIEW');
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [isZipping, setIsZipping] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -110,7 +111,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const hasAudio = content.outputMode !== 'TEXT';
-  const hasImages = content.outputMode === 'TEXT_AUDIO_IMAGES';
+  // Check explicit support for images first
+  const hasImagesMode = content.outputMode === 'TEXT_AUDIO_IMAGES';
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -149,19 +151,24 @@ export const ResultView: React.FC<ResultViewProps> = ({
       const zip = new JSZip();
       const folderName = `TutorBuddy-${content.topic.replace(/\s+/g, '-')}`;
       const root = zip.folder(folderName);
-      const tutorialMd = `# ${content.topic} (${content.subject})\n\n${content.explanation}\n\n## Fun Facts\n${content.funFacts.map(f => `- ${f}`).join('\n')}`;
+      const tutorialMd = `# ${content.topic} (${content.subject})\n\n${content.explanation}`;
       root.file('lesson.md', tutorialMd);
-      const quizMd = `# Quiz: ${content.topic}\n\n${content.quizQuestions.map((q, i) => (
-        `### Question ${i + 1}\n${q.question}\n\nOptions:\n${q.options.map(o => `- ${o}`).join('\n')}\n\n**Correct Answer:** ${q.correctAnswer}\n\n**Buddy's Explanation:** ${q.explanation}\n\n---\n`
-      )).join('\n')}`;
-      root.file('quiz_and_answers.md', quizMd);
-      if (content.images && Array.isArray(content.images)) {
+      
+      if (Array.isArray(content.quizQuestions)) {
+        const quizMd = `# Quiz: ${content.topic}\n\n${content.quizQuestions.map((q, i) => (
+          `### Question ${i + 1}\n${q.question}\n\nOptions:\n${q.options.map(o => `- ${o}`).join('\n')}\n\n**Correct Answer:** ${q.correctAnswer}\n\n**Buddy's Explanation:** ${q.explanation}\n\n---\n`
+        )).join('\n')}`;
+        root.file('quiz_and_answers.md', quizMd);
+      }
+      
+      if (Array.isArray(content.images)) {
         const imgFolder = root.folder('images');
         content.images.forEach((imgBase64, index) => {
           const base64Data = imgBase64.split(',')[1];
           imgFolder.file(`visual-aid-${index + 1}.png`, base64Data, { base64: true });
         });
       }
+      
       let audioBase64 = lastGeneratedAudioRef.current;
       if (!audioBase64 && hasAudio) {
         audioBase64 = await generateSpeech(content.explanation, content.topic, content.ageGroup);
@@ -170,10 +177,16 @@ export const ResultView: React.FC<ResultViewProps> = ({
         const audioBlob = createWavBlob(decode(audioBase64));
         root.file('buddy_dialogue.wav', audioBlob);
       }
-      if (content.parentReport) {
-        const reportTxt = `Guardian Insights: ${content.topic}\n\nSummary: ${content.parentReport.summary}\n\nHighlights:\n${content.parentReport.highlights.map(h => `- ${h}`).join('\n')}\n\nRecommendations: ${content.parentReport.recommendations}`;
-        root.file('guardian_insights.txt', reportTxt);
+      
+      if (content.parentReport && !Array.isArray(content.parentReport) && (content.parentReport as any) !== 'ERROR' && (content.parentReport as any) !== 'LOADING') {
+          // Type guard needed above due to Loadable complexity in older Typescript, but here cast is safe if we check props
+          const report = content.parentReport as any;
+          if (report.summary) {
+             const reportTxt = `Guardian Insights: ${content.topic}\n\nSummary: ${report.summary}\n\nHighlights:\n${report.highlights.map((h: string) => `- ${h}`).join('\n')}\n\nRecommendations: ${report.recommendations}`;
+             root.file('guardian_insights.txt', reportTxt);
+          }
       }
+      
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -198,17 +211,17 @@ export const ResultView: React.FC<ResultViewProps> = ({
       return;
     }
     setIsAudioLoading(true);
+    setAudioError(null);
     try {
       let audioData = lastGeneratedAudioRef.current;
       if (!audioData) {
         audioData = await generateSpeech(content.explanation, content.topic, content.ageGroup);
-        if (!audioData) throw new Error("No audio data returned");
+        if (!audioData) throw new Error("Audio generation returned empty data.");
         lastGeneratedAudioRef.current = audioData;
       }
       if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       }
-      // Critical: Ensure context is resumed (satisfies browser policy)
       if (audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
       }
@@ -222,7 +235,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
       setIsAudioPlaying(true);
     } catch (err) {
       console.warn("Audio playback issue:", err);
-      if (!isAutoPlay) alert("Could not play Buddy dialogue. Please ensure your volume is up.");
+      setAudioError("Audio unavailable.");
     } finally {
       setIsAudioLoading(false);
     }
@@ -235,10 +248,26 @@ export const ResultView: React.FC<ResultViewProps> = ({
     }
   }, [hasAudio]);
 
-  const isImagesLoading = (content.images as any) === 'LOADING';
-  const isFactsLoading = (content.funFacts as any) === 'LOADING';
-  const isQuizLoading = content.quizQuestions.length === 0;
-  const isReportLoading = (content.parentReport as any) === 'LOADING';
+  const isImagesLoading = content.images === 'LOADING';
+  const isImagesError = content.images === 'ERROR';
+  
+  const isFactsLoading = content.funFacts === 'LOADING';
+  const isFactsError = content.funFacts === 'ERROR';
+
+  const isQuizLoading = content.quizQuestions === 'LOADING';
+  const isQuizError = content.quizQuestions === 'ERROR';
+  
+  const isReportLoading = content.parentReport === 'LOADING';
+  const isReportError = content.parentReport === 'ERROR';
+
+  const ErrorPlaceholder = ({ text }: { text: string }) => (
+    <div className="h-full min-h-[120px] bg-rose-50 border border-rose-100 rounded-3xl flex flex-col items-center justify-center text-center p-6">
+      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-rose-500 mb-3 shadow-sm">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+      </div>
+      <p className="text-rose-800 font-bold text-sm">{text}</p>
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-12 pb-32 animate-fadeIn">
@@ -288,18 +317,22 @@ export const ResultView: React.FC<ResultViewProps> = ({
               </div>
               <div className="flex items-center gap-3">
                 {hasAudio && (
-                  <button
-                    onClick={() => handleToggleAudio(false)}
-                    disabled={isAudioLoading}
-                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2 ${isAudioPlaying ? 'bg-rose-50 border-rose-200 text-rose-600 ring-4 ring-rose-500/10' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'}`}
-                  >
-                    {isAudioLoading ? (
-                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 14.828a1 1 0 11-1.414-1.414 5 5 0 000-7.072 1 1 0 011.414-1.414 7 7 0 010 9.9z" clipRule="evenodd" /></svg>
-                    )}
-                    {isAudioPlaying ? 'Stop Audio' : 'Buddy Dialogue'}
-                  </button>
+                  <div className="flex flex-col items-end">
+                    <button
+                      onClick={() => handleToggleAudio(false)}
+                      disabled={isAudioLoading}
+                      className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2 ${isAudioPlaying ? 'bg-rose-50 border-rose-200 text-rose-600 ring-4 ring-rose-500/10' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'} ${audioError ? 'border-rose-300 bg-rose-50 text-rose-600' : ''}`}
+                    >
+                      {isAudioLoading ? (
+                        <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                      ) : audioError ? (
+                        <span>⚠️ Retry Audio</span>
+                      ) : (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 14.828a1 1 0 11-1.414-1.414 5 5 0 000-7.072 1 1 0 011.414-1.414 7 7 0 010 9.9z" clipRule="evenodd" /></svg>
+                      )}
+                      {isAudioPlaying ? 'Stop Audio' : 'Buddy Dialogue'}
+                    </button>
+                  </div>
                 )}
                 <button onClick={onDownloadTutorial} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md">Download .md</button>
               </div>
@@ -388,13 +421,21 @@ export const ResultView: React.FC<ResultViewProps> = ({
         </div>
 
         <div className="lg:col-span-5 space-y-8">
-          {hasImages && (
-            <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100">
+          {hasImagesMode && (
+            <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100 min-h-[300px] flex flex-col">
                <div className="flex justify-between items-center mb-4 px-2">
                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Mastery Gallery</h3>
                </div>
-               <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative">
-                  {isImagesLoading ? <div className="absolute inset-0 shimmer"></div> : <ImageSlideshow images={content.images || []} topic={content.topic} />}
+               <div className="aspect-video rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative flex-grow">
+                  {isImagesLoading ? (
+                    <div className="absolute inset-0 shimmer"></div>
+                  ) : isImagesError ? (
+                    <div className="absolute inset-0 flex items-center justify-center p-8">
+                      <ErrorPlaceholder text="Visuals unavailable" />
+                    </div>
+                  ) : Array.isArray(content.images) ? (
+                    <ImageSlideshow images={content.images} topic={content.topic} />
+                  ) : null}
                </div>
             </section>
           )}
@@ -410,8 +451,10 @@ export const ResultView: React.FC<ResultViewProps> = ({
             <div className="space-y-6 relative z-10">
               {isFactsLoading ? (
                 [1,2,3].map(i => <div key={i} className="h-20 shimmer rounded-3xl opacity-40"></div>)
-              ) : (
-                (content.funFacts || []).map((fact, idx) => {
+              ) : isFactsError ? (
+                 <ErrorPlaceholder text="Facts temporarily unavailable" />
+              ) : Array.isArray(content.funFacts) ? (
+                content.funFacts.map((fact, idx) => {
                   const colorClass = FACT_COLORS[idx % FACT_COLORS.length];
                   const icon = FACT_ICONS[idx % FACT_ICONS.length];
                   return (
@@ -431,7 +474,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
                     </div>
                   );
                 })
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -440,13 +483,20 @@ export const ResultView: React.FC<ResultViewProps> = ({
               <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">🎯</div>
               Mastery Check
             </h3>
-            {isQuizLoading ? <div className="h-24 shimmer rounded-2xl opacity-40"></div> : <Quiz questions={content.quizQuestions} onComplete={(res) => setQuizResult(res)} />}
+            {isQuizLoading ? (
+              <div className="h-24 shimmer rounded-2xl opacity-40"></div>
+            ) : isQuizError ? (
+              <ErrorPlaceholder text="Quiz generation failed" />
+            ) : Array.isArray(content.quizQuestions) && (
+              <Quiz questions={content.quizQuestions} onComplete={(res) => setQuizResult(res)} />
+            )}
           </section>
         </div>
       </div>
-      {content.parentReport && !isReportLoading && (
+      
+      {!isReportLoading && !isReportError && content.parentReport && !Array.isArray(content.parentReport) && (
         <section className="mt-16 animate-fadeIn">
-          <ParentReportView report={content.parentReport} quizResult={quizResult} />
+          <ParentReportView report={content.parentReport as any} quizResult={quizResult} />
         </section>
       )}
     </div>

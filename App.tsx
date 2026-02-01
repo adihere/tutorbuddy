@@ -69,13 +69,15 @@ const App: React.FC = () => {
   }, [cooldownRemaining]);
 
   const saveToHistory = (newContent: LearningContent) => {
-    // We strip heavy assets (images/contextImage) to fit in localStorage
-    // Audio is generated on demand in ResultView, so we don't need to save it.
-    // We mark images as null so ResultView knows not to show the slideshow (or we could re-generate, but simpler to just show text)
+    // Only save if we have actual content, avoiding pure error states for history
     const leanContent: LearningContent = {
       ...newContent,
-      images: null, 
-      contextImage: undefined 
+      images: Array.isArray(newContent.images) ? null : newContent.images, // Don't save large images to localstorage
+      contextImage: undefined,
+      // Ensure we don't save 'LOADING' states to history, fallback to ERROR if still loading
+      quizQuestions: newContent.quizQuestions === 'LOADING' ? 'ERROR' : newContent.quizQuestions,
+      funFacts: newContent.funFacts === 'LOADING' ? 'ERROR' : newContent.funFacts,
+      parentReport: newContent.parentReport === 'LOADING' ? 'ERROR' : newContent.parentReport,
     };
 
     const newItem: HistoryItem = {
@@ -87,7 +89,6 @@ const App: React.FC = () => {
     };
 
     setHistory(prev => {
-      // Keep last 5 items
       const updated = [newItem, ...prev].slice(0, 5);
       localStorage.setItem('tb_history', JSON.stringify(updated));
       return updated;
@@ -137,7 +138,7 @@ const App: React.FC = () => {
   const checkAndSelectKey = async () => {
     // @ts-ignore
     if (typeof window.aistudio === 'undefined') {
-      throw new Error("AI Studio Key Manager not detected.");
+      throw new Error("AI Studio Key Manager not detected. Please ensure you are running in the correct environment.");
     }
     // @ts-ignore
     const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -154,7 +155,6 @@ const App: React.FC = () => {
     outputMode: OutputMode,
     contextImage?: string
   ) => {
-    // Critical: Fresh check of usage before starting
     const usage = checkUsageAllowed();
     if (!usage.allowed) {
       if (usage.reason === 'COOLDOWN') {
@@ -172,7 +172,7 @@ const App: React.FC = () => {
 
       setLoadingStep(`Analyzing safety & age-appropriateness...`);
       const safety = await validateTopicSafety(userTopic, subject, ageGroup);
-      if (!safety.isSafe) throw new Error(safety.reason || "This topic is not suitable for our educational platform.");
+      if (!safety.isSafe) throw new Error(safety.reason || "Topic flagged by safety guidelines.");
 
       setLoadingStep(`Drafting your custom ${subject} lesson...`);
       const tutorial = await generateTutorial(userTopic, subject, ageGroup, contextImage);
@@ -182,10 +182,10 @@ const App: React.FC = () => {
         subject: subject,
         ageGroup: ageGroup,
         explanation: tutorial,
-        quizQuestions: [],
-        images: (outputMode === 'TEXT_AUDIO_IMAGES') ? 'LOADING' as any : null,
-        funFacts: 'LOADING' as any,
-        parentReport: 'LOADING' as any,
+        quizQuestions: 'LOADING',
+        images: outputMode === 'TEXT_AUDIO_IMAGES' ? 'LOADING' : null,
+        funFacts: 'LOADING',
+        parentReport: 'LOADING',
         outputMode: outputMode,
         contextImage: contextImage
       };
@@ -193,43 +193,48 @@ const App: React.FC = () => {
       setContent(initialContent);
       setState('RESULT');
 
-      // Update counters
       const nextCount = (parseInt(localStorage.getItem('tb_runCount') || '0')) + 1;
       localStorage.setItem('tb_runCount', nextCount.toString());
       localStorage.setItem('tb_lastRunAt', Date.now().toString());
       setRunCount(nextCount);
 
-      // Helper to update state safely
       const updateContent = (update: Partial<LearningContent>) => {
         setContent(prev => {
           if (!prev) return null;
           const updated = { ...prev, ...update };
-          // If we have critical data, save snapshot (debounced ideally, but here we wait for 'final' pieces)
-          // We'll save only when major async parts are done to avoid partial saves, 
-          // or just save at the end of the chain. 
-          // For simplicity, we save when parent report (last item) is ready.
-          if (update.parentReport && update.parentReport !== 'LOADING' as any) {
+          // Save history when report is loaded or errored (final step)
+          if (update.parentReport && update.parentReport !== 'LOADING') {
              saveToHistory(updated);
           }
           return updated;
         });
       };
 
-      generateQuiz(userTopic, subject, ageGroup, contextImage).then(quiz => updateContent({ quizQuestions: quiz }));
-      generateFunFacts(userTopic, subject, ageGroup).then(facts => updateContent({ funFacts: facts }));
-      
-      const pReportPromise = generateParentReport(userTopic, subject, ageGroup).then(report => updateContent({ parentReport: report }));
+      // Execute secondary generators concurrently, handling failures individually
+      generateQuiz(userTopic, subject, ageGroup, contextImage)
+        .then(quiz => updateContent({ quizQuestions: quiz }))
+        .catch(() => updateContent({ quizQuestions: 'ERROR' }));
+
+      generateFunFacts(userTopic, subject, ageGroup)
+        .then(facts => updateContent({ funFacts: facts }))
+        .catch(() => updateContent({ funFacts: 'ERROR' }));
+
+      generateParentReport(userTopic, subject, ageGroup)
+        .then(report => updateContent({ parentReport: report }))
+        .catch(() => updateContent({ parentReport: 'ERROR' }));
       
       if (outputMode === 'TEXT_AUDIO_IMAGES') {
-        generateImages(userTopic, subject, ageGroup).then(images => updateContent({ images }));
+        generateImages(userTopic, subject, ageGroup)
+          .then(images => updateContent({ images }))
+          .catch(() => updateContent({ images: 'ERROR' }));
       }
-      
-      // Ensure history saves even if images/audio mode differs
-      pReportPromise.catch(e => console.error("Report generation failed", e));
 
     } catch (err: any) {
       console.error("Session Generation Failed:", err);
-      setError(err.message || "An unexpected error occurred. Please check your API key.");
+      // Nice error mapping
+      let msg = err.message || "An unexpected error occurred.";
+      if (msg.includes("API key")) msg = "Invalid API Key. Please check your settings.";
+      setError(msg);
       setState('ERROR');
     }
   }, []);
@@ -253,7 +258,6 @@ const App: React.FC = () => {
   };
 
   const handleNavigate = (page: AppState) => {
-    // If going back to result but there is no result, go to IDLE
     if (page === 'RESULT' && !content) {
       setState('IDLE');
       return;
@@ -332,7 +336,7 @@ const App: React.FC = () => {
 
       {state === 'ERROR' && (
         <div className="max-w-lg mx-auto bg-white border border-slate-100 rounded-[3rem] p-12 text-center shadow-2xl mt-12 animate-fadeIn">
-          <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-8 text-4xl">🛡️</div>
+          <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-8 text-4xl shadow-sm">⚠️</div>
           <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">System Message</h2>
           <p className="text-slate-500 mb-10 text-lg leading-relaxed">{error}</p>
           <button onClick={resetSession} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl">Try Again</button>

@@ -13,14 +13,30 @@ CRITICAL SAFETY & NEUTRALITY DIRECTIVE:
 - Absolutely no harmful or adult themes.
 `;
 
+// Helper to sanitize error messages for the UI
+function handleGenAIError(err: any): never {
+  console.error("Gemini API Error:", err);
+  const msg = err.message || '';
+  
+  if (msg.includes('429') || msg.includes('quota')) {
+    throw new Error("We're experiencing high traffic. Please try again in a minute.");
+  }
+  if (msg.includes('503') || msg.includes('overloaded')) {
+    throw new Error("TutorBuddy is currently overloaded. Please try again shortly.");
+  }
+  if (msg.includes('SAFETY') || msg.includes('blocked')) {
+    throw new Error("The content could not be generated due to safety guidelines.");
+  }
+  
+  throw new Error("Connection failed. Please check your internet or try again.");
+}
+
 export async function validateTopicSafety(topic: string, subject: string, ageGroup: number) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Classify the safety of the topic: "${topic}" for a ${ageGroup}-year-old student studying ${subject}. 
-      Return JSON: { "isSafe": boolean, "reason": string }. 
-      Rule: No politics, adult themes, or unsafe content.`,
+      contents: `Evaluate safety for topic "${topic}" (Subject: ${subject}, Age: ${ageGroup}). No politics/adult themes.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -34,57 +50,72 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
       }
     });
 
-    const result = JSON.parse(response.text || '{"isSafe": true}');
-    return result;
-  } catch (err) {
-    console.error("Safety Validation Error:", err);
-    // If classification fails technically, we allow it but rely on the generation prompt's safety directives.
+    return JSON.parse(response.text || '{"isSafe": true}');
+  } catch (err: any) {
+    // If it's a strict blocking error, respect it.
+    if (err.message?.includes('SAFETY')) {
+       return { isSafe: false, reason: "Safety filters blocked this topic." };
+    }
+    // Fail open for connectivity issues to allow the robust main generation to handle it, 
+    // but log the check failure.
+    console.warn("Safety check network bypass:", err);
     return { isSafe: true };
   }
 }
 
 export async function generateTutorial(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<string> {
-  const ai = getAI();
-  const promptParts: any[] = [
-    { text: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}".` },
-    { text: `
-      CRITICAL FORMATTING INSTRUCTIONS for SUPERIOR READABILITY:
-      - Use clear, descriptive Markdown headers (## and ###).
-      - Keep paragraphs short (3-4 sentences maximum).
-      - Use bullet points or numbered lists frequently to break up text.
-      - Add a "Concept Spotlight" blockquote for the most important part.
-      - Use bold text for essential terminology.
-      - Ensure a smooth flow from "What is it?" to "Why does it matter?"
-    ` }
-  ];
+  try {
+    const ai = getAI();
+    const promptParts: any[] = [
+      { text: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}".` },
+      { text: `
+        CRITICAL FORMATTING INSTRUCTIONS for SUPERIOR READABILITY:
+        - Use clear, descriptive Markdown headers (## and ###).
+        - Keep paragraphs short (3-4 sentences maximum).
+        - Use bullet points or numbered lists frequently to break up text.
+        - Add a "Concept Spotlight" blockquote for the most important part.
+        - Use bold text for essential terminology.
+        - Ensure a smooth flow from "What is it?" to "Why does it matter?"
+      ` }
+    ];
 
-  if (contextImage) {
-    promptParts.push({ text: "CONTEXT: Prioritize concepts shown in the attached schoolwork image to align with current curriculum focus." });
-    promptParts.push({
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: contextImage.split(',')[1]
-      }
+    if (contextImage) {
+      promptParts.push({ text: "CONTEXT: Prioritize concepts shown in the attached schoolwork image to align with current curriculum focus." });
+      promptParts.push({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: contextImage.split(',')[1]
+        }
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: { parts: promptParts },
     });
+    
+    if (!response.text) throw new Error("Empty response generated.");
+    return response.text;
+  } catch (err) {
+    handleGenAIError(err);
   }
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: { parts: promptParts },
-  });
-  return response.text || "";
 }
 
 export async function askBuddy(history: {role: 'user' | 'model', text: string}[], userMessage: string, topic: string, subject: string, ageGroup: number): Promise<string> {
-  const ai = getAI();
-  const chat = ai.chats.create({
-    model: 'gemini-3-flash-preview',
-    config: {
-      systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. Socratic method: guide, don't just tell.`
-    }
-  });
-  const response = await chat.sendMessage({ message: userMessage });
-  return response.text || "Buddy is thinking... try asking in a different way!";
+  try {
+    const ai = getAI();
+    const chat = ai.chats.create({
+      model: 'gemini-3-flash-preview',
+      config: {
+        systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. Socratic method: guide, don't just tell.`
+      }
+    });
+    const response = await chat.sendMessage({ message: userMessage });
+    return response.text || "I'm having trouble thinking right now. Ask me again?";
+  } catch (err) {
+    console.error("Chat error", err);
+    return "Connection issue. Please try again.";
+  }
 }
 
 async function generateDialogueText(tutorialText: string, topic: string, ageGroup: number): Promise<string> {
@@ -141,12 +172,16 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
         config: { imageConfig: { aspectRatio: "16:9" } }
       })
     ));
-    return results
+    const images = results
       .map(res => res.candidates?.[0]?.content?.parts.find(p => p.inlineData))
       .filter((p): p is any => !!p)
       .map(p => `data:image/png;base64,${p.inlineData.data}`);
-  } catch {
-    return [];
+      
+    if (images.length === 0) throw new Error("No images generated");
+    return images;
+  } catch (err) {
+    console.error("Image Gen Error:", err);
+    throw err; // Propagate to let UI handle "ERROR" state
   }
 }
 
@@ -177,9 +212,12 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
         }
       }
     });
-    return JSON.parse(response.text || '[]');
-  } catch {
-    return [];
+    const data = JSON.parse(response.text || '[]');
+    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid quiz data");
+    return data;
+  } catch (err) {
+    console.error("Quiz Gen Error:", err);
+    throw err;
   }
 }
 
@@ -194,9 +232,12 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
         responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
       }
     });
-    return JSON.parse(response.text || '[]');
-  } catch {
-    return [];
+    const data = JSON.parse(response.text || '[]');
+    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid facts data");
+    return data;
+  } catch (err) {
+     console.error("Facts Gen Error:", err);
+     throw err;
   }
 }
 
@@ -220,7 +261,8 @@ export async function generateParentReport(topic: string, subject: string, ageGr
       }
     });
     return JSON.parse(response.text || 'null');
-  } catch {
-    return null;
+  } catch (err) {
+    console.error("Report Gen Error:", err);
+    throw err;
   }
 }

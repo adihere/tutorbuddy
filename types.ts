@@ -8,14 +8,16 @@ export interface QuizQuestion {
 
 export type OutputMode = 'TEXT' | 'TEXT_AUDIO' | 'TEXT_AUDIO_IMAGES' | 'ALL';
 
+export type Loadable<T> = T | 'LOADING' | 'ERROR';
+
 export interface LearningContent {
   explanation: string;
-  images: string[] | null;
-  quizQuestions: QuizQuestion[];
+  images: Loadable<string[]>;
+  quizQuestions: Loadable<QuizQuestion[]>;
   topic: string;
   subject: string;
-  funFacts: string[];
-  parentReport: ParentReport | null;
+  funFacts: Loadable<string[]>;
+  parentReport: Loadable<ParentReport>;
   outputMode: OutputMode;
   ageGroup: number;
   contextImage?: string; // Base64 image of classwork
