@@ -9,6 +9,8 @@ import { generateSpeech, askBuddy } from '../services/geminiService.ts';
 // @ts-ignore
 import JSZip from 'jszip';
 
+const DEBUG = true;
+
 interface ResultViewProps {
   content: LearningContent;
   onReset: () => void;
@@ -130,14 +132,16 @@ export const ResultView: React.FC<ResultViewProps> = ({
     e.preventDefault();
     if (!userInput.trim() || isBuddyThinking) return;
     const userMsg = userInput;
+    if (DEBUG) console.log('[ResultView] Sending chat:', userMsg);
     setUserInput('');
     setChatMessages(prev => [...prev, {role: 'user', text: userMsg}]);
     setIsBuddyThinking(true);
     try {
       const buddyReply = await askBuddy(chatMessages, userMsg, content.topic, content.subject, content.ageGroup);
       setChatMessages(prev => [...prev, {role: 'model', text: buddyReply}]);
+      if (DEBUG) console.log('[ResultView] Chat reply received');
     } catch (err) {
-      console.error("Chat Error:", err);
+      if (DEBUG) console.error('[ResultView] Chat error:', err);
       setChatMessages(prev => [...prev, {role: 'model', text: "I'm having a little trouble connecting right now, but keep thinking about those great questions!"}]);
     } finally {
       setIsBuddyThinking(false);
@@ -146,6 +150,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
   const handleDownloadFullPack = async () => {
     if (isZipping) return;
+    if (DEBUG) console.log('[ResultView] Starting zip download');
     setIsZipping(true);
     try {
       const zip = new JSZip();
@@ -171,6 +176,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
       
       let audioBase64 = lastGeneratedAudioRef.current;
       if (!audioBase64 && hasAudio) {
+        if (DEBUG) console.log('[ResultView] Generating audio for zip...');
         audioBase64 = await generateSpeech(content.explanation, content.topic, content.ageGroup);
       }
       if (audioBase64) {
@@ -196,6 +202,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      if (DEBUG) console.log('[ResultView] Zip download complete');
     } catch (err) {
       console.error("ZIP creation failed:", err);
       alert("Failed to create the mastery pack. Please try again.");
@@ -205,6 +212,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   };
 
   const handleToggleAudio = async (isAutoPlay = false) => {
+    if (DEBUG) console.log(`[ResultView] Toggle audio. Autoplay: ${isAutoPlay}, CurrentlyPlaying: ${isAudioPlaying}`);
     if (isAudioPlaying) {
       audioSourceRef.current?.stop();
       setIsAudioPlaying(false);
@@ -215,6 +223,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
     try {
       let audioData = lastGeneratedAudioRef.current;
       if (!audioData) {
+        if (DEBUG) console.log('[ResultView] Generating fresh audio...');
         audioData = await generateSpeech(content.explanation, content.topic, content.ageGroup);
         if (!audioData) throw new Error("Audio generation returned empty data.");
         lastGeneratedAudioRef.current = audioData;
@@ -233,8 +242,10 @@ export const ResultView: React.FC<ResultViewProps> = ({
       audioSourceRef.current = source;
       source.start();
       setIsAudioPlaying(true);
+      if (DEBUG) console.log('[ResultView] Audio playing');
     } catch (err) {
       console.warn("Audio playback issue:", err);
+      if (DEBUG) console.error('[ResultView] Audio error:', err);
       setAudioError("Audio unavailable.");
     } finally {
       setIsAudioLoading(false);

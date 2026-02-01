@@ -2,6 +2,8 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { QuizQuestion, ParentReport } from "../types.ts";
 
+const DEBUG = true;
+
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SAFETY_DIRECTIVE = `
@@ -15,7 +17,7 @@ CRITICAL SAFETY & NEUTRALITY DIRECTIVE:
 
 // Helper to sanitize error messages for the UI
 function handleGenAIError(err: any): never {
-  console.error("Gemini API Error:", err);
+  if (DEBUG) console.error("Gemini API Error (Raw):", err);
   const msg = err.message || '';
   
   if (msg.includes('429') || msg.includes('quota')) {
@@ -32,6 +34,7 @@ function handleGenAIError(err: any): never {
 }
 
 export async function validateTopicSafety(topic: string, subject: string, ageGroup: number) {
+  if (DEBUG) console.log(`[GeminiService] validateTopicSafety: Checking "${topic}" (${subject}, Age: ${ageGroup})`);
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
@@ -50,20 +53,22 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
       }
     });
 
-    return JSON.parse(response.text || '{"isSafe": true}');
+    const result = JSON.parse(response.text || '{"isSafe": true}');
+    if (DEBUG) console.log(`[GeminiService] validateTopicSafety Result:`, result);
+    return result;
   } catch (err: any) {
+    if (DEBUG) console.warn(`[GeminiService] validateTopicSafety failed, bypassing check:`, err);
     // If it's a strict blocking error, respect it.
     if (err.message?.includes('SAFETY')) {
        return { isSafe: false, reason: "Safety filters blocked this topic." };
     }
-    // Fail open for connectivity issues to allow the robust main generation to handle it, 
-    // but log the check failure.
-    console.warn("Safety check network bypass:", err);
+    // Fail open for connectivity issues to allow the robust main generation to handle it
     return { isSafe: true };
   }
 }
 
 export async function generateTutorial(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<string> {
+  if (DEBUG) console.log(`[GeminiService] generateTutorial: Starting for "${topic}"`);
   try {
     const ai = getAI();
     const promptParts: any[] = [
@@ -80,6 +85,7 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
     ];
 
     if (contextImage) {
+      if (DEBUG) console.log(`[GeminiService] generateTutorial: Including context image`);
       promptParts.push({ text: "CONTEXT: Prioritize concepts shown in the attached schoolwork image to align with current curriculum focus." });
       promptParts.push({
         inlineData: {
@@ -95,6 +101,7 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
     });
     
     if (!response.text) throw new Error("Empty response generated.");
+    if (DEBUG) console.log(`[GeminiService] generateTutorial: Success (${response.text.length} chars)`);
     return response.text;
   } catch (err) {
     handleGenAIError(err);
@@ -102,6 +109,7 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
 }
 
 export async function askBuddy(history: {role: 'user' | 'model', text: string}[], userMessage: string, topic: string, subject: string, ageGroup: number): Promise<string> {
+  if (DEBUG) console.log(`[GeminiService] askBuddy: Sending message "${userMessage}"`);
   try {
     const ai = getAI();
     const chat = ai.chats.create({
@@ -110,7 +118,13 @@ export async function askBuddy(history: {role: 'user' | 'model', text: string}[]
         systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. Socratic method: guide, don't just tell.`
       }
     });
+    // Note: Recreating chat for single turn or managing history externally as typical in these stateless wrappers
+    // Ideally we pass history into `history` param of create, but here we just send message for simplicity in this specific snippet
+    // If strict history is needed:
+    // const chat = ai.chats.create({ model: ..., history: history.map(...) })
+    
     const response = await chat.sendMessage({ message: userMessage });
+    if (DEBUG) console.log(`[GeminiService] askBuddy: Response received`);
     return response.text || "I'm having trouble thinking right now. Ask me again?";
   } catch (err) {
     console.error("Chat error", err);
@@ -119,6 +133,7 @@ export async function askBuddy(history: {role: 'user' | 'model', text: string}[]
 }
 
 async function generateDialogueText(tutorialText: string, topic: string, ageGroup: number): Promise<string> {
+  if (DEBUG) console.log(`[GeminiService] generateDialogueText: converting tutorial to dialogue`);
   const ai = getAI();
   const prompt = `Convert this lesson about "${topic}" into a short, emotional dialogue between 'Buddy' (Tutor) and 'Sam' (Student). Focus on the core wonder. Content: ${tutorialText.slice(0, 1000)}`;
   const response = await ai.models.generateContent({
@@ -129,6 +144,7 @@ async function generateDialogueText(tutorialText: string, topic: string, ageGrou
 }
 
 export async function generateSpeech(tutorialText: string, topic: string, ageGroup: number): Promise<string | null> {
+  if (DEBUG) console.log(`[GeminiService] generateSpeech: Starting TTS generation`);
   try {
     const ai = getAI();
     const dialogue = await generateDialogueText(tutorialText, topic, ageGroup);
@@ -147,7 +163,9 @@ export async function generateSpeech(tutorialText: string, topic: string, ageGro
         },
       },
     });
-    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+    const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+    if (DEBUG) console.log(`[GeminiService] generateSpeech: Complete. Data length: ${audioData?.length || 0}`);
+    return audioData;
   } catch (err) {
     console.error("Speech Generation Error:", err);
     return null;
@@ -155,6 +173,7 @@ export async function generateSpeech(tutorialText: string, topic: string, ageGro
 }
 
 export async function generateImages(topic: string, subject: string, ageGroup: number): Promise<string[]> {
+  if (DEBUG) console.log(`[GeminiService] generateImages: Starting batch generation`);
   const ai = getAI();
   const prompts = [
     `Detailed educational illustration of ${topic} (${subject}), age ${ageGroup}.`,
@@ -178,6 +197,7 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
       .map(p => `data:image/png;base64,${p.inlineData.data}`);
       
     if (images.length === 0) throw new Error("No images generated");
+    if (DEBUG) console.log(`[GeminiService] generateImages: Generated ${images.length} images`);
     return images;
   } catch (err) {
     console.error("Image Gen Error:", err);
@@ -186,6 +206,7 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
 }
 
 export async function generateQuiz(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<QuizQuestion[]> {
+  if (DEBUG) console.log(`[GeminiService] generateQuiz: Starting`);
   try {
     const ai = getAI();
     const promptParts: any[] = [{ text: `Generate 5 friendly MCQ questions for "${topic}" (${subject}) age ${ageGroup}. Include explanations.` }];
@@ -214,6 +235,7 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
     });
     const data = JSON.parse(response.text || '[]');
     if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid quiz data");
+    if (DEBUG) console.log(`[GeminiService] generateQuiz: Success, ${data.length} questions`);
     return data;
   } catch (err) {
     console.error("Quiz Gen Error:", err);
@@ -222,6 +244,7 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
 }
 
 export async function generateFunFacts(topic: string, subject: string, ageGroup: number): Promise<string[]> {
+  if (DEBUG) console.log(`[GeminiService] generateFunFacts: Starting`);
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
@@ -234,6 +257,7 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
     });
     const data = JSON.parse(response.text || '[]');
     if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid facts data");
+    if (DEBUG) console.log(`[GeminiService] generateFunFacts: Success`);
     return data;
   } catch (err) {
      console.error("Facts Gen Error:", err);
@@ -242,6 +266,7 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
 }
 
 export async function generateParentReport(topic: string, subject: string, ageGroup: number): Promise<ParentReport | null> {
+  if (DEBUG) console.log(`[GeminiService] generateParentReport: Starting`);
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
@@ -260,6 +285,7 @@ export async function generateParentReport(topic: string, subject: string, ageGr
         }
       }
     });
+    if (DEBUG) console.log(`[GeminiService] generateParentReport: Success`);
     return JSON.parse(response.text || 'null');
   } catch (err) {
     console.error("Report Gen Error:", err);
