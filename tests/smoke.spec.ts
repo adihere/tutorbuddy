@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 
 // Mock Data Helpers
@@ -39,6 +40,23 @@ const MOCK_REPORT = {
   recommendations: "Try gardening together."
 };
 
+const MOCK_DIAGRAM = `
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="400" cy="300" r="100" fill="green" />
+  <text x="350" y="300" font-size="20" fill="white">Chlorophyll</text>
+</svg>
+`;
+
+const MOCK_DEEP_DIVE_SUGGESTIONS = [
+  "Chlorophyll", "Calvin Cycle", "Stomata"
+];
+
+const MOCK_THINKING_RESPONSE = `<thinking>
+1. User asked about process.
+2. I should explain simply using the factory analogy.
+</thinking>
+It's like a solar-powered sugar factory!`;
+
 test.describe('TutorBuddy Smoke Tests', () => {
 
   test.beforeEach(async ({ page }) => {
@@ -47,45 +65,50 @@ test.describe('TutorBuddy Smoke Tests', () => {
       const request = route.request();
       const postData = request.postDataJSON();
       
-      // Determine what kind of request this is based on the prompt/contents
       const textContent = JSON.stringify(postData);
       
       let responseText = "";
       let isJson = false;
       let isImage = false;
+      let groundingMetadata = undefined;
 
       if (textContent.includes("Classify the safety")) {
-        // Safety Check
         responseText = JSON.stringify({ isSafe: true, reason: "Safe topic" });
         isJson = true;
       } else if (textContent.includes("Generate 5 friendly MCQ")) {
-        // Quiz Generation
         responseText = JSON.stringify(MOCK_QUIZ);
         isJson = true;
       } else if (textContent.includes("mind-blowing short facts")) {
-        // Fun Facts
         responseText = JSON.stringify(MOCK_FACTS);
         isJson = true;
       } else if (textContent.includes("Generate a parent report")) {
-        // Parent Report
         responseText = JSON.stringify(MOCK_REPORT);
         isJson = true;
+      } else if (textContent.includes("Create a clean, educational SVG diagram")) {
+         responseText = MOCK_DIAGRAM;
+      } else if (textContent.includes("Identify 3 fascinating sub-topics")) {
+         responseText = JSON.stringify(MOCK_DEEP_DIVE_SUGGESTIONS);
+         isJson = true;
+      } else if (textContent.includes("before answering, you MUST think step-by-step")) {
+         // Chat request
+         responseText = MOCK_THINKING_RESPONSE;
       } else if (textContent.includes("Convert this lesson about")) {
-        // Dialogue Generation (Text for TTS)
         responseText = "Hey Sam, did you know plants eat light? Wow Buddy that is cool!";
       } else if (textContent.includes("TTS conversation")) {
-        // TTS Audio (return base64 audio mock)
-        // We simulate a very short audio file structure
         isImage = true; // Reusing image structure for inlineData
-      } else if (textContent.includes("illustration of")) {
-        // Image Generation
+      } else if (textContent.includes("illustration of") || textContent.includes("Conceptual 3D visualization")) {
         isImage = true;
       } else {
         // Default: Tutorial Generation
         responseText = MOCK_TUTORIAL;
+        // Mock citations
+        groundingMetadata = {
+            groundingChunks: [
+                { web: { uri: "https://example.com/plants", title: "Plant Science" } }
+            ]
+        };
       }
 
-      // Construct the Google GenAI response format
       let responseBody;
       
       if (isImage) {
@@ -106,7 +129,8 @@ test.describe('TutorBuddy Smoke Tests', () => {
           candidates: [{
             content: {
               parts: [{ text: responseText }]
-            }
+            },
+            groundingMetadata: groundingMetadata
           }]
         };
       }
@@ -125,99 +149,100 @@ test.describe('TutorBuddy Smoke Tests', () => {
     await expect(page).toHaveTitle(/TutorBuddy/);
     await expect(page.getByText('Mastery in Minutes')).toBeVisible();
     
-    // Check navigation to About
     await page.getByRole('button', { name: 'About' }).first().click();
     await expect(page.getByText('Our Mission')).toBeVisible();
     
-    // Go back
     await page.getByRole('button', { name: 'Back to Learning' }).click();
     await expect(page.getByText('Personalized Learning')).toBeVisible();
   });
 
   test('Full Lesson Generation Flow', async ({ page }) => {
-    // 1. Fill Form
     await page.getByPlaceholder('e.g., Quantum Physics').fill('Photosynthesis');
-    // Using default subject (Science) and age (10)
-    
-    // 2. Submit
     const generateBtn = page.getByRole('button', { name: 'Generate Mastery Canvas' });
     await expect(generateBtn).toBeEnabled();
     await generateBtn.click();
 
-    // 3. Verify Loading State
     await expect(page.getByText('Creating your canvas...')).toBeVisible();
     await expect(page.getByText('Analyzing safety')).toBeVisible();
 
-    // 4. Verify Result View Loads
-    // Check Title
     await expect(page.getByRole('heading', { name: 'Photosynthesis', level: 1 })).toBeVisible({ timeout: 10000 });
     
-    // Check Tutorial Content (Markdown rendering)
     await expect(page.getByText('Plants eat light!')).toBeVisible();
 
-    // Check Fun Facts
-    await expect(page.getByText('Plants can smell.')).toBeVisible();
+    // Check Grounding Citation
+    await expect(page.getByText('Plant Science')).toBeVisible();
 
-    // Check Audio Button exists (Video generation mocked as image/audio in generic handler, but outputMode defaults to TEXT_AUDIO_IMAGES)
+    // Check Diagram Loaded (SVG existence)
+    await expect(page.locator('svg').filter({ hasText: 'Chlorophyll' })).toBeVisible();
+
+    await expect(page.getByText('Plants can smell.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Buddy Dialogue' })).toBeVisible();
   });
 
-  test('Quiz Interaction works', async ({ page }) => {
-    // Setup state directly or run through flow. Running through flow is safer for E2E.
+  test('Quiz Interaction - Single Attempt Flow', async ({ page }) => {
     await page.getByPlaceholder('e.g., Quantum Physics').fill('Photosynthesis');
     await page.getByRole('button', { name: 'Generate Mastery Canvas' }).click();
     await expect(page.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible();
 
-    // Locate Quiz Section
     const quizSection = page.locator('section').filter({ hasText: 'Mastery Check' });
     await quizSection.scrollIntoViewIfNeeded();
 
-    // Check Question
     await expect(quizSection.getByText('What do plants need?')).toBeVisible();
 
-    // Select Wrong Answer first (assuming 'Pizza' is wrong based on mock)
+    // Select Wrong Answer (Pizza)
     await quizSection.getByRole('button', { name: 'Pizza' }).click();
     await quizSection.getByRole('button', { name: 'Verify Answer' }).click();
     
-    // Check for shake animation or error state (implied by retrying or red color classes, hard to test CSS animation directly, check class)
-    // The component logic shakes on wrong answer but doesn't lock "isAnswered" if wrong? 
-    // Wait, looking at code: handleCheck -> if correct setScore, else setShake. It ONLY sets isAnswered=true if correct?? 
-    // Code review: "if (isCorrect) ... else setShake". It does NOT set isAnswered=true if wrong.
-    // So we can try again.
-    
-    // Select Correct Answer
-    await quizSection.getByRole('button', { name: 'Sunlight' }).click();
-    await quizSection.getByRole('button', { name: 'Verify Answer' }).click();
-
-    // Verify Success State
+    // Check that feedback appears
     await expect(quizSection.getByText("Buddy's Explanation")).toBeVisible();
-    await expect(quizSection.getByText("Plants use sunlight energy.")).toBeVisible();
+    
+    // Check that button changed to Next Challenge (attempt locked)
+    await expect(quizSection.getByRole('button', { name: 'Next Challenge' })).toBeVisible();
 
     // Next Question
     await quizSection.getByRole('button', { name: 'Next Challenge' }).click();
     await expect(quizSection.getByText('What is the output?')).toBeVisible();
   });
 
-  test('Chat Interface works', async ({ page }) => {
+  test('Deep Dive Feature works', async ({ page }) => {
+    await page.getByPlaceholder('e.g., Quantum Physics').fill('Photosynthesis');
+    await page.getByRole('button', { name: 'Generate Mastery Canvas' }).click();
+    await expect(page.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible();
+
+    // Wait for deep dive suggestions
+    await expect(page.getByText('Dive Deeper')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Chlorophyll' })).toBeVisible();
+
+    // Click suggestion
+    await page.getByRole('button', { name: 'Chlorophyll' }).click();
+
+    // Check modal appears
+    await expect(page.getByRole('heading', { name: 'Deep Dive: Chlorophyll' })).toBeVisible();
+    
+    // Check Close
+    await page.getByRole('button', { name: 'Close Lesson' }).click();
+    await expect(page.getByRole('heading', { name: 'Deep Dive: Chlorophyll' })).not.toBeVisible();
+  });
+
+  test('Chat Interface with Chain-of-Thought works', async ({ page }) => {
     await page.getByPlaceholder('e.g., Quantum Physics').fill('Photosynthesis');
     await page.getByRole('button', { name: 'Generate Mastery Canvas' }).click();
     await expect(page.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible();
 
     const chatInput = page.getByPlaceholder('Ask Buddy a question...');
     await chatInput.fill('How does it work?');
-    
-    // Mock the chat response specifically if needed, or rely on default tutorial mock
-    // The current mock implementation returns "Photosynthesis..." for default text calls.
-    // Let's refine mock if needed, but for smoke test, getting ANY response is success.
-    
     await page.getByRole('button', { name: 'Send' }).click();
 
-    // Verify user message appears
     await expect(page.getByText('How does it work?', { exact: true })).toBeVisible();
     
-    // Verify bot thinking or response
-    // The mock returns the Tutorial Markdown for unknown requests, which is fine for smoke test connectivity check.
-    // We just want to ensure the UI updated.
-    await expect(page.locator('.bg-white\\/10').last()).toBeVisible(); // Bot message bubble class
+    // Check Chain of Thought toggle button exists
+    await expect(page.getByRole('button', { name: 'Show AI Thought Process' })).toBeVisible();
+    
+    // Toggle it
+    await page.getByRole('button', { name: 'Show AI Thought Process' }).click();
+    await expect(page.getByText('I should explain simply using the factory analogy')).toBeVisible();
+
+    // Check final response
+    await expect(page.getByText("It's like a solar-powered sugar factory!")).toBeVisible();
   });
 });

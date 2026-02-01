@@ -314,7 +314,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
        
       {/* Deep Dive Modal */}
       {selectedDeepDive && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
            <div className="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
               <div className="px-8 py-6 bg-indigo-600 text-white flex justify-between items-center">
                  <h3 className="text-xl font-black flex items-center gap-3">

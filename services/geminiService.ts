@@ -216,8 +216,17 @@ export async function generateDiagram(topic: string, subject: string): Promise<s
       - Include labels text elements.`,
     });
     let svg = response.text || "";
+    // Robust cleanup to handle markdown blocks and XML declarations
     svg = svg.replace(/```svg/g, '').replace(/```xml/g, '').replace(/```/g, '').trim();
-    return svg.startsWith('<svg') ? svg : null;
+    
+    // Find the first occurrence of <svg
+    const startIndex = svg.indexOf('<svg');
+    const endIndex = svg.lastIndexOf('</svg>');
+    
+    if (startIndex !== -1 && endIndex !== -1) {
+      return svg.substring(startIndex, endIndex + 6);
+    }
+    return null;
   } catch (err) {
     console.error("Diagram Error", err);
     return null;
