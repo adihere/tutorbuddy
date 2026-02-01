@@ -32,4 +32,12 @@ export interface QuizResult {
   total: number;
 }
 
+export interface HistoryItem {
+  id: string;
+  timestamp: number;
+  topic: string;
+  subject: string;
+  content: LearningContent;
+}
+
 export type AppState = 'IDLE' | 'PROCESSING' | 'RESULT' | 'ERROR' | 'ABOUT';

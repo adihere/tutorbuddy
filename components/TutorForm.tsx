@@ -1,10 +1,12 @@
 
 import React, { useState, useRef } from 'react';
-import { OutputMode } from '../types.ts';
+import { OutputMode, HistoryItem } from '../types.ts';
 
 interface TutorFormProps {
   onSubmit: (topic: string, subject: string, ageGroup: number, outputMode: OutputMode, contextImage?: string) => void;
   isLoading: boolean;
+  history?: HistoryItem[];
+  onLoadHistory?: (item: HistoryItem) => void;
 }
 
 const COLOR_MAP: Record<string, { border: string; bg: string; text: string; ring: string; iconBg: string }> = {
@@ -38,7 +40,7 @@ const COLOR_MAP: Record<string, { border: string; bg: string; text: string; ring
   }
 };
 
-export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => {
+export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading, history = [], onLoadHistory }) => {
   const [topic, setTopic] = useState('');
   const [subject, setSubject] = useState('Science');
   const [ageGroup, setAgeGroup] = useState<number>(10);
@@ -92,7 +94,7 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
       title: 'Visual Tutor',
       desc: '5 Photos + Quiz',
       color: 'indigo',
-      icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+      icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
     },
     {
       id: 'ALL',
@@ -261,6 +263,36 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
           )}
         </button>
       </form>
+
+      {history.length > 0 && (
+        <div className="mt-16 animate-fadeIn">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-px flex-1 bg-slate-200"></div>
+            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Recent Sessions</span>
+            <div className="h-px flex-1 bg-slate-200"></div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {history.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onLoadHistory?.(item)}
+                className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left group"
+              >
+                <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
+                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors capitalize">{item.topic}</h4>
+                  <p className="text-xs text-slate-500 font-medium">{item.subject} &bull; Age {item.content.ageGroup}</p>
+                </div>
+                <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

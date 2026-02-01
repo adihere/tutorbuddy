@@ -5,7 +5,7 @@ import { TutorForm } from './components/TutorForm.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
 import { ResultView } from './components/ResultView.tsx';
 import { AboutPage } from './components/AboutPage.tsx';
-import { AppState, LearningContent, OutputMode } from './types.ts';
+import { AppState, LearningContent, OutputMode, HistoryItem } from './types.ts';
 import {
   generateTutorial,
   generateQuiz,
@@ -24,6 +24,7 @@ const App: React.FC = () => {
   const [content, setContent] = useState<LearningContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState('');
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const formRef = useRef<HTMLDivElement>(null);
 
   const [runCount, setRunCount] = useState(0);
@@ -37,6 +38,7 @@ const App: React.FC = () => {
     const today = new Date().toISOString().split('T')[0];
     const storedDate = localStorage.getItem('tb_runDate');
     const storedHasCode = !!localStorage.getItem('tb_hasSharedCode');
+    const storedHistory = localStorage.getItem('tb_history');
 
     if (storedDate !== today) {
       localStorage.setItem('tb_runDate', today);
@@ -46,6 +48,14 @@ const App: React.FC = () => {
       setRunCount(parseInt(localStorage.getItem('tb_runCount') || '0'));
     }
     setHasSharedCode(storedHasCode);
+
+    if (storedHistory) {
+      try {
+        setHistory(JSON.parse(storedHistory));
+      } catch (e) {
+        console.error("Failed to parse history", e);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -57,6 +67,37 @@ const App: React.FC = () => {
     }
     return () => clearInterval(timer);
   }, [cooldownRemaining]);
+
+  const saveToHistory = (newContent: LearningContent) => {
+    // We strip heavy assets (images/contextImage) to fit in localStorage
+    // Audio is generated on demand in ResultView, so we don't need to save it.
+    // We mark images as null so ResultView knows not to show the slideshow (or we could re-generate, but simpler to just show text)
+    const leanContent: LearningContent = {
+      ...newContent,
+      images: null, 
+      contextImage: undefined 
+    };
+
+    const newItem: HistoryItem = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      topic: newContent.topic,
+      subject: newContent.subject,
+      content: leanContent
+    };
+
+    setHistory(prev => {
+      // Keep last 5 items
+      const updated = [newItem, ...prev].slice(0, 5);
+      localStorage.setItem('tb_history', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleLoadHistory = (item: HistoryItem) => {
+    setContent(item.content);
+    setState('RESULT');
+  };
 
   const checkUsageAllowed = (): { allowed: boolean; reason?: 'COOLDOWN' | 'LIMIT'; remainingSeconds?: number } => {
     const storedCount = parseInt(localStorage.getItem('tb_runCount') || '0');
@@ -158,17 +199,33 @@ const App: React.FC = () => {
       localStorage.setItem('tb_lastRunAt', Date.now().toString());
       setRunCount(nextCount);
 
+      // Helper to update state safely
       const updateContent = (update: Partial<LearningContent>) => {
-        setContent(prev => prev ? { ...prev, ...update } : null);
+        setContent(prev => {
+          if (!prev) return null;
+          const updated = { ...prev, ...update };
+          // If we have critical data, save snapshot (debounced ideally, but here we wait for 'final' pieces)
+          // We'll save only when major async parts are done to avoid partial saves, 
+          // or just save at the end of the chain. 
+          // For simplicity, we save when parent report (last item) is ready.
+          if (update.parentReport && update.parentReport !== 'LOADING' as any) {
+             saveToHistory(updated);
+          }
+          return updated;
+        });
       };
 
       generateQuiz(userTopic, subject, ageGroup, contextImage).then(quiz => updateContent({ quizQuestions: quiz }));
       generateFunFacts(userTopic, subject, ageGroup).then(facts => updateContent({ funFacts: facts }));
-      generateParentReport(userTopic, subject, ageGroup).then(report => updateContent({ parentReport: report }));
+      
+      const pReportPromise = generateParentReport(userTopic, subject, ageGroup).then(report => updateContent({ parentReport: report }));
       
       if (outputMode === 'TEXT_AUDIO_IMAGES') {
         generateImages(userTopic, subject, ageGroup).then(images => updateContent({ images }));
       }
+      
+      // Ensure history saves even if images/audio mode differs
+      pReportPromise.catch(e => console.error("Report generation failed", e));
 
     } catch (err: any) {
       console.error("Session Generation Failed:", err);
@@ -241,7 +298,12 @@ const App: React.FC = () => {
                 Please wait {cooldownRemaining} seconds before your next lesson
               </div>
             )}
-            <TutorForm onSubmit={handleStartSession} isLoading={false} />
+            <TutorForm 
+              onSubmit={handleStartSession} 
+              isLoading={false} 
+              history={history}
+              onLoadHistory={handleLoadHistory}
+            />
             <div className="text-center">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-100 px-4 py-2 rounded-full shadow-sm">
                 {hasSharedCode ? "✓ Classroom Pass Active" : `Free Daily Usage: ${runCount}/${DAILY_LIMIT}`}
