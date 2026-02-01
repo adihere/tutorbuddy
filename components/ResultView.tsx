@@ -44,19 +44,14 @@ async function decodeAudioData(
   return buffer;
 }
 
-/**
- * Wraps raw PCM data into a playable WAV file
- */
 function createWavBlob(pcmData: Uint8Array, sampleRate: number = 24000): Blob {
   const header = new ArrayBuffer(44);
   const view = new DataView(header);
-
   const writeString = (offset: number, string: string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
   };
-
   writeString(0, 'RIFF');
   view.setUint32(4, 32 + pcmData.length, true);
   writeString(8, 'WAVE');
@@ -65,12 +60,11 @@ function createWavBlob(pcmData: Uint8Array, sampleRate: number = 24000): Blob {
   view.setUint16(20, 1, true); // PCM
   view.setUint16(22, 1, true); // Mono
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true); // Byte rate
-  view.setUint16(32, 2, true); // Block align
-  view.setUint16(34, 16, true); // Bits per sample
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
   writeString(36, 'data');
   view.setUint32(40, pcmData.length, true);
-
   return new Blob([header, pcmData], { type: 'audio/wav' });
 }
 
@@ -107,6 +101,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const lastGeneratedAudioRef = useRef<string | null>(null);
+  const hasAutoPlayedRef = useRef(false);
 
   // Chat State
   const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
@@ -121,15 +116,21 @@ export const ResultView: React.FC<ResultViewProps> = ({
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isBuddyThinking]);
 
+  // Clean up audio on unmount or reset
+  useEffect(() => {
+    return () => {
+      audioSourceRef.current?.stop();
+      audioContextRef.current?.close();
+    };
+  }, []);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim() || isBuddyThinking) return;
-
     const userMsg = userInput;
     setUserInput('');
     setChatMessages(prev => [...prev, {role: 'user', text: userMsg}]);
     setIsBuddyThinking(true);
-
     try {
       const buddyReply = await askBuddy(chatMessages, userMsg, content.topic, content.subject, content.ageGroup);
       setChatMessages(prev => [...prev, {role: 'model', text: buddyReply}]);
@@ -148,18 +149,12 @@ export const ResultView: React.FC<ResultViewProps> = ({
       const zip = new JSZip();
       const folderName = `TutorBuddy-${content.topic.replace(/\s+/g, '-')}`;
       const root = zip.folder(folderName);
-
-      // 1. Tutorial Markdown
       const tutorialMd = `# ${content.topic} (${content.subject})\n\n${content.explanation}\n\n## Fun Facts\n${content.funFacts.map(f => `- ${f}`).join('\n')}`;
       root.file('lesson.md', tutorialMd);
-
-      // 2. Quiz and Answers
       const quizMd = `# Quiz: ${content.topic}\n\n${content.quizQuestions.map((q, i) => (
         `### Question ${i + 1}\n${q.question}\n\nOptions:\n${q.options.map(o => `- ${o}`).join('\n')}\n\n**Correct Answer:** ${q.correctAnswer}\n\n**Buddy's Explanation:** ${q.explanation}\n\n---\n`
       )).join('\n')}`;
       root.file('quiz_and_answers.md', quizMd);
-
-      // 3. Images
       if (content.images && Array.isArray(content.images)) {
         const imgFolder = root.folder('images');
         content.images.forEach((imgBase64, index) => {
@@ -167,25 +162,18 @@ export const ResultView: React.FC<ResultViewProps> = ({
           imgFolder.file(`visual-aid-${index + 1}.png`, base64Data, { base64: true });
         });
       }
-
-      // 4. Audio (WAV)
       let audioBase64 = lastGeneratedAudioRef.current;
       if (!audioBase64 && hasAudio) {
-        // If user hasn't played audio yet, generate it for the zip
         audioBase64 = await generateSpeech(content.explanation, content.topic, content.ageGroup);
       }
-      
       if (audioBase64) {
         const audioBlob = createWavBlob(decode(audioBase64));
         root.file('buddy_dialogue.wav', audioBlob);
       }
-
-      // 5. Parent Report
       if (content.parentReport) {
         const reportTxt = `Guardian Insights: ${content.topic}\n\nSummary: ${content.parentReport.summary}\n\nHighlights:\n${content.parentReport.highlights.map(h => `- ${h}`).join('\n')}\n\nRecommendations: ${content.parentReport.recommendations}`;
         root.file('guardian_insights.txt', reportTxt);
       }
-
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -203,13 +191,12 @@ export const ResultView: React.FC<ResultViewProps> = ({
     }
   };
 
-  const handleToggleAudio = async () => {
+  const handleToggleAudio = async (isAutoPlay = false) => {
     if (isAudioPlaying) {
       audioSourceRef.current?.stop();
       setIsAudioPlaying(false);
       return;
     }
-
     setIsAudioLoading(true);
     try {
       let audioData = lastGeneratedAudioRef.current;
@@ -218,26 +205,35 @@ export const ResultView: React.FC<ResultViewProps> = ({
         if (!audioData) throw new Error("No audio data returned");
         lastGeneratedAudioRef.current = audioData;
       }
-
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      audioContextRef.current = ctx;
-      
-      const audioBuffer = await decodeAudioData(decode(audioData), ctx, 24000, 1);
-      const source = ctx.createBufferSource();
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      }
+      // Critical: Ensure context is resumed (satisfies browser policy)
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+      const audioBuffer = await decodeAudioData(decode(audioData), audioContextRef.current, 24000, 1);
+      const source = audioContextRef.current.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(ctx.destination);
+      source.connect(audioContextRef.current.destination);
       source.onended = () => setIsAudioPlaying(false);
-      
       audioSourceRef.current = source;
       source.start();
       setIsAudioPlaying(true);
     } catch (err) {
-      console.error("Audio playback error:", err);
-      alert("Failed to play audio dialogue.");
+      console.warn("Audio playback issue:", err);
+      if (!isAutoPlay) alert("Could not play Buddy dialogue. Please ensure your volume is up.");
     } finally {
       setIsAudioLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (hasAudio && !hasAutoPlayedRef.current) {
+      hasAutoPlayedRef.current = true;
+      handleToggleAudio(true);
+    }
+  }, [hasAudio]);
 
   const isImagesLoading = (content.images as any) === 'LOADING';
   const isFactsLoading = (content.funFacts as any) === 'LOADING';
@@ -284,18 +280,16 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
       <div className="grid lg:grid-cols-12 gap-10">
         <div className="lg:col-span-7 space-y-10">
-          {/* Tutorial Section */}
           <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200 border border-slate-100 flex flex-col h-[700px] overflow-hidden">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
               <div className="flex bg-slate-200 p-1 rounded-xl">
                 <button onClick={() => setViewMode('PREVIEW')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
                 <button onClick={() => setViewMode('RAW')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'RAW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Markdown</button>
               </div>
-              
               <div className="flex items-center gap-3">
                 {hasAudio && (
                   <button
-                    onClick={handleToggleAudio}
+                    onClick={() => handleToggleAudio(false)}
                     disabled={isAudioLoading}
                     className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2 ${isAudioPlaying ? 'bg-rose-50 border-rose-200 text-rose-600 ring-4 ring-rose-500/10' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'}`}
                   >
@@ -310,7 +304,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
                 <button onClick={onDownloadTutorial} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md">Download .md</button>
               </div>
             </div>
-
             <div className="flex-grow overflow-y-auto p-12 custom-scrollbar">
               {viewMode === 'PREVIEW' ? (
                 <div
@@ -327,7 +320,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
             </div>
           </section>
 
-          {/* Socratic Chat Section */}
           <section className="bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[500px] border border-slate-800">
              <div className="px-8 py-5 border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -341,7 +333,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
                 </div>
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Discussion History: {chatMessages.length}</div>
              </div>
-
              <div className="flex-grow overflow-y-auto p-8 space-y-6 custom-scrollbar bg-slate-900/50">
                 {chatMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
@@ -375,7 +366,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
                 )}
                 <div ref={chatEndRef} />
              </div>
-
              <form onSubmit={handleSendMessage} className="p-6 bg-slate-950 border-t border-white/10">
                 <div className="relative">
                   <input 
@@ -454,8 +444,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
           </section>
         </div>
       </div>
-
-      {/* Guardian Insights at the bottom of the output window */}
       {content.parentReport && !isReportLoading && (
         <section className="mt-16 animate-fadeIn">
           <ParentReportView report={content.parentReport} quizResult={quizResult} />

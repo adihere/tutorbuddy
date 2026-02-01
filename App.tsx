@@ -4,6 +4,7 @@ import { Layout } from './components/Layout.tsx';
 import { TutorForm } from './components/TutorForm.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
 import { ResultView } from './components/ResultView.tsx';
+import { AboutPage } from './components/AboutPage.tsx';
 import { AppState, LearningContent, OutputMode } from './types.ts';
 import {
   generateTutorial,
@@ -25,34 +26,28 @@ const App: React.FC = () => {
   const [loadingStep, setLoadingStep] = useState('');
   const formRef = useRef<HTMLDivElement>(null);
 
-  // Usage States for UI feedback
   const [runCount, setRunCount] = useState(0);
   const [hasSharedCode, setHasSharedCode] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [inputCode, setInputCode] = useState('');
 
-  // Initialize and Sync Usage from LocalStorage
+  // Sync initial state with localStorage
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     const storedDate = localStorage.getItem('tb_runDate');
-    const storedCount = parseInt(localStorage.getItem('tb_runCount') || '0');
     const storedHasCode = !!localStorage.getItem('tb_hasSharedCode');
 
     if (storedDate !== today) {
       localStorage.setItem('tb_runDate', today);
       localStorage.setItem('tb_runCount', '0');
-      // Note: we don't necessarily reset tb_lastRunAt or tb_hasSharedCode across days
-      // as shared code is a "soft identity" that persists.
       setRunCount(0);
     } else {
-      setRunCount(storedCount);
+      setRunCount(parseInt(localStorage.getItem('tb_runCount') || '0'));
     }
-
     setHasSharedCode(storedHasCode);
   }, []);
 
-  // Cooldown timer logic
   useEffect(() => {
     let timer: number;
     if (cooldownRemaining > 0) {
@@ -63,9 +58,6 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [cooldownRemaining]);
 
-  /**
-   * Strictly evaluates usage allowed based on localStorage to prevent bypass.
-   */
   const checkUsageAllowed = (): { allowed: boolean; reason?: 'COOLDOWN' | 'LIMIT'; remainingSeconds?: number } => {
     const storedCount = parseInt(localStorage.getItem('tb_runCount') || '0');
     const lastRunAt = parseInt(localStorage.getItem('tb_lastRunAt') || '0');
@@ -73,7 +65,6 @@ const App: React.FC = () => {
     const now = Date.now();
     const elapsed = now - lastRunAt;
 
-    // 1. Cooldown Check (Applies to all if at least one run was made)
     if (storedCount > 0 && elapsed < COOLDOWN_MS) {
       return { 
         allowed: false, 
@@ -82,7 +73,6 @@ const App: React.FC = () => {
       };
     }
 
-    // 2. Daily Limit Check (Only if no shared code)
     if (!storedHasCode && storedCount >= DAILY_LIMIT) {
       return { allowed: false, reason: 'LIMIT' };
     }
@@ -99,14 +89,14 @@ const App: React.FC = () => {
       setShowCodeModal(false);
       setError(null);
     } else {
-      alert("Invalid shared code. Please ask your teacher for the correct code.");
+      alert("Invalid classroom code.");
     }
   };
 
   const checkAndSelectKey = async () => {
     // @ts-ignore
     if (typeof window.aistudio === 'undefined') {
-      throw new Error("API Key Manager not found. Please ensure you are logged in and have selected a valid Gemini API key to start learning.");
+      throw new Error("AI Studio Key Manager not detected.");
     }
     // @ts-ignore
     const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -123,18 +113,15 @@ const App: React.FC = () => {
     outputMode: OutputMode,
     contextImage?: string
   ) => {
-    // Behavioral Rule: Re-evaluate based on localStorage immediately before starting
+    // Critical: Fresh check of usage before starting
     const usage = checkUsageAllowed();
-    
     if (!usage.allowed) {
       if (usage.reason === 'COOLDOWN') {
         setCooldownRemaining(usage.remainingSeconds || 0);
         return;
       }
-      if (usage.reason === 'LIMIT') {
-        setShowCodeModal(true);
-        return;
-      }
+      setShowCodeModal(true);
+      return;
     }
 
     try {
@@ -142,13 +129,11 @@ const App: React.FC = () => {
       setState('PROCESSING');
       setError(null);
 
-      setLoadingStep(`Running safety check...`);
-      const safetyResult = await validateTopicSafety(userTopic, subject, ageGroup);
-      if (!safetyResult.isSafe) {
-        throw new Error(safetyResult.reason || "Topic unsuitable for our educational platform.");
-      }
+      setLoadingStep(`Analyzing safety & age-appropriateness...`);
+      const safety = await validateTopicSafety(userTopic, subject, ageGroup);
+      if (!safety.isSafe) throw new Error(safety.reason || "This topic is not suitable for our educational platform.");
 
-      setLoadingStep(`Drafting your ${subject} lesson...`);
+      setLoadingStep(`Drafting your custom ${subject} lesson...`);
       const tutorial = await generateTutorial(userTopic, subject, ageGroup, contextImage);
 
       const initialContent: LearningContent = {
@@ -167,13 +152,10 @@ const App: React.FC = () => {
       setContent(initialContent);
       setState('RESULT');
 
-      // Update Usage Stats
-      const currentStoredCount = parseInt(localStorage.getItem('tb_runCount') || '0');
-      const nextCount = currentStoredCount + 1;
-      const now = Date.now();
-      
+      // Update counters
+      const nextCount = (parseInt(localStorage.getItem('tb_runCount') || '0')) + 1;
       localStorage.setItem('tb_runCount', nextCount.toString());
-      localStorage.setItem('tb_lastRunAt', now.toString());
+      localStorage.setItem('tb_lastRunAt', Date.now().toString());
       setRunCount(nextCount);
 
       const updateContent = (update: Partial<LearningContent>) => {
@@ -190,10 +172,10 @@ const App: React.FC = () => {
 
     } catch (err: any) {
       console.error("Session Generation Failed:", err);
-      setError(err.message || "Failed to create lesson. Please check your API key.");
+      setError(err.message || "An unexpected error occurred. Please check your API key.");
       setState('ERROR');
     }
-  }, [hasSharedCode]); // Removed runCount and lastRunAt from deps to ensure we always read from storage
+  }, []);
 
   const resetSession = () => {
     setContent(null);
@@ -213,67 +195,56 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleNavigate = (page: AppState) => {
+    // If going back to result but there is no result, go to IDLE
+    if (page === 'RESULT' && !content) {
+      setState('IDLE');
+      return;
+    }
+    setState(page);
+  };
+
   return (
-    <Layout>
-      {/* Shared Code Modal Overlay */}
+    <Layout onNavigate={handleNavigate}>
       {showCodeModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-[3rem] p-12 max-w-md w-full shadow-2xl text-center border-8 border-slate-50">
-            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-8 text-4xl shadow-inner">
-              🔑
-            </div>
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-8 text-4xl shadow-inner">🔑</div>
             <h2 className="text-3xl font-black text-slate-950 mb-4 tracking-tight">Free Limit Reached</h2>
-            <p className="text-slate-500 mb-8 leading-relaxed">
-              You’ve reached today’s free limit ({DAILY_LIMIT} lessons). Enter a shared classroom code from your teacher to continue, or come back tomorrow.
-            </p>
+            <p className="text-slate-500 mb-8 leading-relaxed">Please enter your Classroom Code (e.g., BETA2025) or wait until tomorrow.</p>
             <form onSubmit={handleCodeSubmit} className="space-y-4">
               <input
                 type="text"
-                placeholder="Enter Shared Code"
+                placeholder="Enter Code"
                 value={inputCode}
                 onChange={(e) => setInputCode(e.target.value)}
-                className="w-full px-8 py-5 rounded-2xl border-2 border-slate-100 focus:border-blue-500 outline-none text-xl text-center font-bold tracking-widest"
+                className="w-full px-8 py-5 rounded-2xl border-2 border-slate-100 focus:border-blue-500 outline-none text-xl text-center font-bold tracking-widest uppercase"
               />
-              <button
-                type="submit"
-                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
-              >
-                Submit Code
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCodeModal(false)}
-                className="w-full py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors"
-              >
-                Maybe later
-              </button>
+              <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl">Submit Code</button>
+              <button type="button" onClick={() => setShowCodeModal(false)} className="w-full py-4 text-slate-400 font-bold">Maybe later</button>
             </form>
           </div>
         </div>
+      )}
+
+      {state === 'ABOUT' && (
+        <AboutPage onBack={() => handleNavigate(content ? 'RESULT' : 'IDLE')} />
       )}
 
       {state === 'IDLE' && (
         <>
           <LandingPage onStart={() => formRef.current?.scrollIntoView({ behavior: 'smooth' })} />
           <div ref={formRef} className="mt-12 space-y-6">
-            {/* Cooldown Warning */}
             {cooldownRemaining > 0 && (
               <div className="max-w-4xl mx-auto px-8 py-4 bg-amber-50 border-2 border-amber-100 rounded-2xl text-amber-700 font-bold flex items-center justify-center gap-3 animate-fadeIn">
-                <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Please wait {cooldownRemaining} seconds before your next lesson
               </div>
             )}
-            
             <TutorForm onSubmit={handleStartSession} isLoading={false} />
-            
-            {/* Usage Badge */}
             <div className="text-center">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-100 px-4 py-2 rounded-full shadow-sm">
-                {hasSharedCode 
-                  ? "✓ Classroom Pass Active - Unlimited Daily Lessons" 
-                  : `Free Daily Access: ${runCount}/${DAILY_LIMIT} lessons used`}
+                {hasSharedCode ? "✓ Classroom Pass Active" : `Free Daily Usage: ${runCount}/${DAILY_LIMIT}`}
               </span>
             </div>
           </div>
@@ -294,11 +265,7 @@ const App: React.FC = () => {
       )}
 
       {state === 'RESULT' && content && (
-        <ResultView 
-          content={content}
-          onReset={resetSession}
-          onDownloadTutorial={downloadTutorial}
-        />
+        <ResultView content={content} onReset={resetSession} onDownloadTutorial={downloadTutorial} />
       )}
 
       {state === 'ERROR' && (

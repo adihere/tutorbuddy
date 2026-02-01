@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { OutputMode } from '../types.ts';
 
@@ -5,6 +6,37 @@ interface TutorFormProps {
   onSubmit: (topic: string, subject: string, ageGroup: number, outputMode: OutputMode, contextImage?: string) => void;
   isLoading: boolean;
 }
+
+const COLOR_MAP: Record<string, { border: string; bg: string; text: string; ring: string; iconBg: string }> = {
+  slate: { 
+    border: 'border-slate-600', 
+    bg: 'bg-slate-50', 
+    text: 'text-slate-700', 
+    ring: 'ring-slate-500/10',
+    iconBg: 'bg-slate-600'
+  },
+  rose: { 
+    border: 'border-rose-600', 
+    bg: 'bg-rose-50', 
+    text: 'text-rose-700', 
+    ring: 'ring-rose-500/10',
+    iconBg: 'bg-rose-600'
+  },
+  indigo: { 
+    border: 'border-indigo-600', 
+    bg: 'bg-indigo-50', 
+    text: 'text-indigo-700', 
+    ring: 'ring-indigo-500/10',
+    iconBg: 'bg-indigo-600'
+  },
+  blue: { 
+    border: 'border-blue-600', 
+    bg: 'bg-blue-50', 
+    text: 'text-blue-700', 
+    ring: 'ring-blue-500/10',
+    iconBg: 'bg-blue-600'
+  }
+};
 
 export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => {
   const [topic, setTopic] = useState('');
@@ -122,7 +154,6 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
           </div>
         </div>
 
-        {/* Scan Classwork Input */}
         <div className="bg-slate-50 p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200">
            <div className="flex flex-col items-center justify-center text-center">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Curriculum Context (Optional)</label>
@@ -169,41 +200,43 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading }) => 
 
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm max-w-4xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {modeOptions.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                disabled={mode.disabled}
-                onClick={() => !mode.disabled && setOutputMode(mode.id)}
-                className={`flex flex-col items-center gap-3 p-5 rounded-3xl border-2 transition-all relative overflow-hidden group ${
-                  mode.disabled 
-                    ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed grayscale opacity-60'
-                    : outputMode === mode.id 
-                      ? `border-${mode.color}-600 bg-${mode.color}-50 text-${mode.color}-700 shadow-md ring-4 ring-${mode.color}-500/10` 
-                      : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {mode.disabled && (
-                  <div className="absolute top-2 right-2 px-2 py-0.5 bg-slate-200 text-[8px] font-black uppercase tracking-tighter rounded-full text-slate-500">
-                    Coming Soon
+            {modeOptions.map((mode) => {
+              const active = outputMode === mode.id;
+              const config = COLOR_MAP[mode.color];
+              
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  disabled={mode.disabled}
+                  onClick={() => !mode.disabled && setOutputMode(mode.id)}
+                  className={`flex flex-col items-center gap-3 p-5 rounded-3xl border-2 transition-all relative overflow-hidden group ${
+                    mode.disabled 
+                      ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed grayscale opacity-60'
+                      : active 
+                        ? `${config.border} ${config.bg} ${config.text} shadow-md ring-4 ${config.ring}` 
+                        : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {mode.disabled && (
+                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-slate-200 text-[8px] font-black uppercase tracking-tighter rounded-full text-slate-500">
+                      Coming Soon
+                    </div>
+                  )}
+                  <div className={`p-3 rounded-2xl ${
+                    mode.disabled 
+                      ? 'bg-slate-200 text-slate-400'
+                      : active ? `${config.iconBg} text-white` : 'bg-slate-100 text-slate-400'
+                  } transition-colors`}>
+                    {mode.icon}
                   </div>
-                )}
-                <div className={`p-3 rounded-2xl ${
-                  mode.disabled 
-                    ? 'bg-slate-200 text-slate-400'
-                    : outputMode === mode.id ? `bg-${mode.color}-600 text-white` : 'bg-slate-100 text-slate-400'
-                } transition-colors`}>
-                  {mode.icon}
-                </div>
-                <div className="text-center">
-                  <span className="block font-black text-sm uppercase tracking-tight leading-none mb-1">{mode.title}</span>
-                  <span className="text-[10px] font-bold opacity-60 leading-none">{mode.desc}</span>
-                </div>
-                {mode.disabled && (
-                  <div className="absolute inset-0 bg-white/40 group-hover:bg-white/60 transition-colors pointer-events-none"></div>
-                )}
-              </button>
-            ))}
+                  <div className="text-center">
+                    <span className="block font-black text-sm uppercase tracking-tight leading-none mb-1">{mode.title}</span>
+                    <span className="text-[10px] font-bold opacity-60 leading-none">{mode.desc}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 

@@ -1,3 +1,4 @@
+
 export interface QuizQuestion {
   question: string;
   options: string[];
@@ -31,4 +32,4 @@ export interface QuizResult {
   total: number;
 }
 
-export type AppState = 'IDLE' | 'PROCESSING' | 'RESULT' | 'ERROR';
+export type AppState = 'IDLE' | 'PROCESSING' | 'RESULT' | 'ERROR' | 'ABOUT';

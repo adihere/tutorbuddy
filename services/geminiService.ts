@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { QuizQuestion, ParentReport } from "../types.ts";
 
@@ -17,7 +18,9 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Evaluate safety for topic "${topic}" (Subject: ${subject}, Age: ${ageGroup}). No politics/adult themes. Return JSON with isSafe (bool) and reason (string).`,
+      contents: `Classify the safety of the topic: "${topic}" for a ${ageGroup}-year-old student studying ${subject}. 
+      Return JSON: { "isSafe": boolean, "reason": string }. 
+      Rule: No politics, adult themes, or unsafe content.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -31,15 +34,17 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
       }
     });
 
-    return JSON.parse(response.text || '{"isSafe": true}');
-  } catch {
+    const result = JSON.parse(response.text || '{"isSafe": true}');
+    return result;
+  } catch (err) {
+    console.error("Safety Validation Error:", err);
+    // If classification fails technically, we allow it but rely on the generation prompt's safety directives.
     return { isSafe: true };
   }
 }
 
 export async function generateTutorial(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<string> {
   const ai = getAI();
-  
   const promptParts: any[] = [
     { text: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}".` },
     { text: `
@@ -54,7 +59,7 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
   ];
 
   if (contextImage) {
-    promptParts.push({ text: "IMPORTANT: I am providing an image of my school classwork. Please prioritize and align your explanation with the definitions, methods, and specific focus areas shown in this image to help me with my specific homework/curriculum." });
+    promptParts.push({ text: "CONTEXT: Prioritize concepts shown in the attached schoolwork image to align with current curriculum focus." });
     promptParts.push({
       inlineData: {
         mimeType: 'image/jpeg',
@@ -75,40 +80,20 @@ export async function askBuddy(history: {role: 'user' | 'model', text: string}[]
   const chat = ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: {
-      systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. You are discussing ${topic} in the context of ${subject}. Use a Socratic method: instead of just giving answers, ask guided questions to help the student find the answer themselves when appropriate. Always be encouraging and age-appropriate.`
+      systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. Socratic method: guide, don't just tell.`
     }
   });
-
   const response = await chat.sendMessage({ message: userMessage });
   return response.text || "Buddy is thinking... try asking in a different way!";
 }
 
 async function generateDialogueText(tutorialText: string, topic: string, ageGroup: number): Promise<string> {
   const ai = getAI();
-  const prompt = `
-    Transform the following tutorial about "${topic}" for a ${ageGroup}-year-old into a short, high-energy, and emotional educational dialogue between two characters.
-    
-    Characters:
-    - Buddy: A wise, encouraging, and enthusiastic tutor.
-    - Sam: A curious, energetic student who asks insightful questions.
-    
-    Guidelines:
-    - Use expressive markers for emotions (e.g., "(Sam, with wide eyes)", "(Buddy, chuckling warmly)").
-    - Focus on the coolest part of the lesson.
-    - Keep it under 200 words.
-    
-    Tutorial Content: ${tutorialText.slice(0, 1500)}
-    
-    Output Format:
-    Buddy: (enthusiastically) [Text]
-    Sam: (curiously) [Text]
-  `;
-
+  const prompt = `Convert this lesson about "${topic}" into a short, emotional dialogue between 'Buddy' (Tutor) and 'Sam' (Student). Focus on the core wonder. Content: ${tutorialText.slice(0, 1000)}`;
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt,
   });
-
   return response.text || "";
 }
 
@@ -116,35 +101,24 @@ export async function generateSpeech(tutorialText: string, topic: string, ageGro
   try {
     const ai = getAI();
     const dialogue = await generateDialogueText(tutorialText, topic, ageGroup);
-    
-    const ttsPrompt = `TTS the following conversation between Buddy and Sam with natural emotional expression and perfect educational pacing:
-    ${dialogue}`;
-    
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: ttsPrompt }] }],
+      contents: [{ parts: [{ text: `TTS conversation:\n${dialogue}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           multiSpeakerVoiceConfig: {
             speakerVoiceConfigs: [
-              {
-                speaker: 'Buddy',
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
-              },
-              {
-                speaker: 'Sam',
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
-              }
+              { speaker: 'Buddy', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+              { speaker: 'Sam', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } }
             ]
           }
         },
       },
     });
-
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (err) {
-    console.error("Multi-Speaker TTS Error:", err);
+    console.error("Speech Generation Error:", err);
     return null;
   }
 }
@@ -152,11 +126,11 @@ export async function generateSpeech(tutorialText: string, topic: string, ageGro
 export async function generateImages(topic: string, subject: string, ageGroup: number): Promise<string[]> {
   const ai = getAI();
   const prompts = [
-    `Educational illustration of ${topic} for ${subject}, age ${ageGroup}. High detail, pedagogical style.`,
-    `Conceptual 3D visualization explaining the core principle of ${topic}.`,
-    `Detailed scientific or historical diagram for ${topic}.`,
-    `Atmospheric cinematic scene showing ${topic} in action or its impact.`,
-    `Infographic-style visual summary of ${topic} key components.`
+    `Detailed educational illustration of ${topic} (${subject}), age ${ageGroup}.`,
+    `Scientific conceptual visualization of ${topic}.`,
+    `Informative diagram of ${topic} for students.`,
+    `Atmospheric scene depicting ${topic}.`,
+    `Core component of ${topic} explained visually.`
   ];
 
   try {
@@ -167,13 +141,11 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
         config: { imageConfig: { aspectRatio: "16:9" } }
       })
     ));
-
     return results
       .map(res => res.candidates?.[0]?.content?.parts.find(p => p.inlineData))
       .filter((p): p is any => !!p)
       .map(p => `data:image/png;base64,${p.inlineData.data}`);
-  } catch (err) {
-    console.error("Image generation failed:", err);
+  } catch {
     return [];
   }
 }
@@ -181,20 +153,10 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
 export async function generateQuiz(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<QuizQuestion[]> {
   try {
     const ai = getAI();
-    const promptParts: any[] = [
-      { text: `${SAFETY_DIRECTIVE} Generate 5 MCQ questions for "${topic}" (${subject}) for age ${ageGroup}. Include 4 options and 1 correctAnswer. IMPORTANT: Also include an "explanation" field for each question that explains WHY the answer is correct in a friendly way for a student.` }
-    ];
-
+    const promptParts: any[] = [{ text: `Generate 5 friendly MCQ questions for "${topic}" (${subject}) age ${ageGroup}. Include explanations.` }];
     if (contextImage) {
-      promptParts.push({ text: "Personalize the quiz questions based on the specific concepts and problems shown in this student's classwork image." });
-      promptParts.push({
-        inlineData: {
-          mimeType: 'image/jpeg',
-          data: contextImage.split(',')[1]
-        }
-      });
+      promptParts.push({ inlineData: { mimeType: 'image/jpeg', data: contextImage.split(',')[1] } });
     }
-
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { parts: promptParts },
@@ -226,13 +188,10 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `${SAFETY_DIRECTIVE} Generate 3-5 unique, mind-blowing fun facts about "${topic}" in the context of ${subject} for a ${ageGroup}-year-old. Keep facts under 20 words each.`,
+      contents: `Generate 3-5 mind-blowing short facts about "${topic}" for age ${ageGroup}. JSON array.`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING }
-        }
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
       }
     });
     return JSON.parse(response.text || '[]');
@@ -246,11 +205,7 @@ export async function generateParentReport(topic: string, subject: string, ageGr
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `You are an educational consultant for parents. Topic: "${topic}" (${subject}) for a ${ageGroup}-year-old. 
-      Generate a professional report:
-      1. Summary: Educational value.
-      2. Highlights: 3 key focus areas.
-      3. Recommendations: How to support learning at home.`,
+      contents: `Generate a parent report for ${topic} (${subject}), age ${ageGroup}. JSON format.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
