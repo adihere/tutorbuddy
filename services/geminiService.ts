@@ -113,14 +113,22 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
 }
 
 export async function askBuddy(history: {role: 'user' | 'model', text: string}[], userMessage: string, topic: string, subject: string, ageGroup: number): Promise<string> {
-  if (DEBUG) console.log(`[GeminiService] askBuddy: Sending message "${userMessage}"`);
+  if (DEBUG) console.log(`[GeminiService] askBuddy: Sending message "${userMessage}" with history length ${history.length}`);
   try {
     const ai = getAI();
+    
+    // Transform history to Gemini API format
+    const historyContents = history.map(item => ({
+      role: item.role,
+      parts: [{ text: item.text }]
+    }));
+
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise tutor for age ${ageGroup}.`
-      }
+        systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise tutor for age ${ageGroup}. Topic: ${topic} (${subject}).`
+      },
+      history: historyContents
     });
     
     const response = await chat.sendMessage({ message: userMessage });

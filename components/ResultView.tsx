@@ -152,11 +152,20 @@ export const ResultView: React.FC<ResultViewProps> = ({
     if (!userInput.trim() || isBuddyThinking) return;
     const userMsg = userInput;
     if (DEBUG) console.log('[ResultView] Sending chat:', userMsg);
+    
+    // Explicitly define history as current messages. 
+    // askBuddy expects the history of PREVIOUS turns, and the new message as a separate argument.
+    // So 'chatMessages' is the correct history to pass.
+    // However, we immediately update the UI to show the user's message.
+    const currentHistory = [...chatMessages];
+    
     setUserInput('');
     setChatMessages(prev => [...prev, {role: 'user', text: userMsg}]);
     setIsBuddyThinking(true);
+    
     try {
-      const buddyReply = await askBuddy(chatMessages, userMsg, content.topic, content.subject, content.ageGroup);
+      // Pass the history accumulated SO FAR (before this new user message), and the new user message.
+      const buddyReply = await askBuddy(currentHistory, userMsg, content.topic, content.subject, content.ageGroup);
       setChatMessages(prev => [...prev, {role: 'model', text: buddyReply}]);
     } catch (err) {
       if (DEBUG) console.error('[ResultView] Chat error:', err);
