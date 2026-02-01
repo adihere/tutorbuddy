@@ -5,7 +5,7 @@ import { ImageSlideshow } from './ImageSlideshow.tsx';
 import { Quiz } from './Quiz.tsx';
 import { ParentReportView } from './ParentReportView.tsx';
 import { marked } from 'marked';
-import { generateSpeech, askBuddy } from '../services/geminiService.ts';
+import { generateSpeech, askBuddy, generateDeepDiveSuggestions, generateDeepDiveContent } from '../services/geminiService.ts';
 // @ts-ignore
 import JSZip from 'jszip';
 
@@ -111,22 +111,46 @@ export const ResultView: React.FC<ResultViewProps> = ({
   const [userInput, setUserInput] = useState('');
   const [isBuddyThinking, setIsBuddyThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [expandedThoughts, setExpandedThoughts] = useState<Record<number, boolean>>({});
+
+  // Deep Dive State
+  const [deepDiveSuggestions, setDeepDiveSuggestions] = useState<string[]>([]);
+  const [selectedDeepDive, setSelectedDeepDive] = useState<string | null>(null);
+  const [deepDiveContent, setDeepDiveContent] = useState<string | null>(null);
+  const [isDeepDiveLoading, setIsDeepDiveLoading] = useState(false);
 
   const hasAudio = content.outputMode !== 'TEXT';
-  // Check explicit support for images first
   const hasImagesMode = content.outputMode === 'TEXT_AUDIO_IMAGES';
+
+  // Load Deep Dive Suggestions on Mount
+  useEffect(() => {
+    generateDeepDiveSuggestions(content.topic, content.subject, content.ageGroup).then(setDeepDiveSuggestions);
+  }, [content.topic]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isBuddyThinking]);
 
-  // Clean up audio on unmount or reset
   useEffect(() => {
     return () => {
       audioSourceRef.current?.stop();
       audioContextRef.current?.close();
     };
   }, []);
+
+  const toggleThought = (idx: number) => {
+    setExpandedThoughts(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }));
+  };
+
+  const parseMessage = (text: string) => {
+    const thinkingMatch = text.match(/<thinking>([\s\S]*?)<\/thinking>/);
+    const thinking = thinkingMatch ? thinkingMatch[1].trim() : null;
+    const cleanText = text.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
+    return { thinking, cleanText };
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,9 +161,9 @@ export const ResultView: React.FC<ResultViewProps> = ({
     setChatMessages(prev => [...prev, {role: 'user', text: userMsg}]);
     setIsBuddyThinking(true);
     try {
+      // We pass the raw messages history, but for the UI we display the parsed versions
       const buddyReply = await askBuddy(chatMessages, userMsg, content.topic, content.subject, content.ageGroup);
       setChatMessages(prev => [...prev, {role: 'model', text: buddyReply}]);
-      if (DEBUG) console.log('[ResultView] Chat reply received');
     } catch (err) {
       if (DEBUG) console.error('[ResultView] Chat error:', err);
       setChatMessages(prev => [...prev, {role: 'model', text: "I'm having a little trouble connecting right now, but keep thinking about those great questions!"}]);
@@ -148,9 +172,22 @@ export const ResultView: React.FC<ResultViewProps> = ({
     }
   };
 
+  const handleDeepDiveClick = async (suggestion: string) => {
+    setSelectedDeepDive(suggestion);
+    setDeepDiveContent(null);
+    setIsDeepDiveLoading(true);
+    try {
+       const diveText = await generateDeepDiveContent(suggestion, content.topic, content.ageGroup);
+       setDeepDiveContent(diveText);
+    } catch (e) {
+       setDeepDiveContent("Oops, could not explore that right now.");
+    } finally {
+       setIsDeepDiveLoading(false);
+    }
+  };
+
   const handleDownloadFullPack = async () => {
     if (isZipping) return;
-    if (DEBUG) console.log('[ResultView] Starting zip download');
     setIsZipping(true);
     try {
       const zip = new JSZip();
@@ -176,7 +213,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
       
       let audioBase64 = lastGeneratedAudioRef.current;
       if (!audioBase64 && hasAudio) {
-        if (DEBUG) console.log('[ResultView] Generating audio for zip...');
         audioBase64 = await generateSpeech(content.explanation, content.topic, content.ageGroup);
       }
       if (audioBase64) {
@@ -185,7 +221,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
       }
       
       if (content.parentReport && !Array.isArray(content.parentReport) && (content.parentReport as any) !== 'ERROR' && (content.parentReport as any) !== 'LOADING') {
-          // Type guard needed above due to Loadable complexity in older Typescript, but here cast is safe if we check props
           const report = content.parentReport as any;
           if (report.summary) {
              const reportTxt = `Guardian Insights: ${content.topic}\n\nSummary: ${report.summary}\n\nHighlights:\n${report.highlights.map((h: string) => `- ${h}`).join('\n')}\n\nRecommendations: ${report.recommendations}`;
@@ -202,7 +237,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      if (DEBUG) console.log('[ResultView] Zip download complete');
     } catch (err) {
       console.error("ZIP creation failed:", err);
       alert("Failed to create the mastery pack. Please try again.");
@@ -212,7 +246,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
   };
 
   const handleToggleAudio = async (isAutoPlay = false) => {
-    if (DEBUG) console.log(`[ResultView] Toggle audio. Autoplay: ${isAutoPlay}, CurrentlyPlaying: ${isAudioPlaying}`);
     if (isAudioPlaying) {
       audioSourceRef.current?.stop();
       setIsAudioPlaying(false);
@@ -223,7 +256,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
     try {
       let audioData = lastGeneratedAudioRef.current;
       if (!audioData) {
-        if (DEBUG) console.log('[ResultView] Generating fresh audio...');
         audioData = await generateSpeech(content.explanation, content.topic, content.ageGroup);
         if (!audioData) throw new Error("Audio generation returned empty data.");
         lastGeneratedAudioRef.current = audioData;
@@ -242,10 +274,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
       audioSourceRef.current = source;
       source.start();
       setIsAudioPlaying(true);
-      if (DEBUG) console.log('[ResultView] Audio playing');
     } catch (err) {
       console.warn("Audio playback issue:", err);
-      if (DEBUG) console.error('[ResultView] Audio error:', err);
       setAudioError("Audio unavailable.");
     } finally {
       setIsAudioLoading(false);
@@ -261,13 +291,12 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
   const isImagesLoading = content.images === 'LOADING';
   const isImagesError = content.images === 'ERROR';
-  
+  const isDiagramLoading = content.diagram === 'LOADING';
+  const isDiagramError = content.diagram === 'ERROR';
   const isFactsLoading = content.funFacts === 'LOADING';
   const isFactsError = content.funFacts === 'ERROR';
-
   const isQuizLoading = content.quizQuestions === 'LOADING';
   const isQuizError = content.quizQuestions === 'ERROR';
-  
   const isReportLoading = content.parentReport === 'LOADING';
   const isReportError = content.parentReport === 'ERROR';
 
@@ -281,7 +310,40 @@ export const ResultView: React.FC<ResultViewProps> = ({
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-12 pb-32 animate-fadeIn">
+    <div className="max-w-7xl mx-auto space-y-12 pb-32 animate-fadeIn relative">
+       
+      {/* Deep Dive Modal */}
+      {selectedDeepDive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+           <div className="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+              <div className="px-8 py-6 bg-indigo-600 text-white flex justify-between items-center">
+                 <h3 className="text-xl font-black flex items-center gap-3">
+                   <span className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">🤿</span>
+                   Deep Dive: {selectedDeepDive}
+                 </h3>
+                 <button onClick={() => setSelectedDeepDive(null)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                 </button>
+              </div>
+              <div className="p-8 overflow-y-auto custom-scrollbar">
+                 {isDeepDiveLoading ? (
+                    <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                       <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                       <p className="text-indigo-600 font-bold animate-pulse">Generating Micro-Lesson...</p>
+                    </div>
+                 ) : (
+                    <div className="prose prose-lg prose-indigo max-w-none">
+                       <div dangerouslySetInnerHTML={{ __html: marked.parse(deepDiveContent || "") }} />
+                    </div>
+                 )}
+              </div>
+              <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 text-center">
+                 <button onClick={() => setSelectedDeepDive(null)} className="text-sm font-bold text-slate-400 hover:text-slate-600">Close Lesson</button>
+              </div>
+           </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-end justify-between border-b-2 border-slate-100 pb-8 gap-6">
         <div>
           <span className="text-sm font-black text-blue-600 uppercase tracking-widest mb-2 block">
@@ -348,7 +410,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
                 <button onClick={onDownloadTutorial} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md">Download .md</button>
               </div>
             </div>
-            <div className="flex-grow overflow-y-auto p-12 custom-scrollbar">
+            <div className="flex-grow overflow-y-auto p-12 custom-scrollbar relative">
               {viewMode === 'PREVIEW' ? (
                 <div
                   className="prose prose-slate prose-xl max-w-none prose-headings:font-black prose-a:text-blue-600"
@@ -361,10 +423,25 @@ export const ResultView: React.FC<ResultViewProps> = ({
                   className="w-full h-full font-mono text-lg text-slate-600 bg-transparent resize-none outline-none leading-relaxed"
                 />
               )}
+              {content.groundingSource && content.groundingSource.length > 0 && (
+                <div className="mt-8 pt-8 border-t border-slate-100">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Sources & Citations</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {content.groundingSource.map((chunk, idx) => (
+                       chunk.web?.uri && (
+                        <a key={idx} href={chunk.web.uri} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors text-xs font-bold text-slate-500 truncate border border-slate-100">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          {chunk.web.title || chunk.web.uri}
+                        </a>
+                       )
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
-          <section className="bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[500px] border border-slate-800">
+          <section className="bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[600px] border border-slate-800">
              <div className="px-8 py-5 border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
@@ -384,17 +461,40 @@ export const ResultView: React.FC<ResultViewProps> = ({
                      <p className="text-white font-medium max-w-[200px]">"I'm here to help you master this! Ask me anything about the lesson."</p>
                   </div>
                 ) : (
-                  chatMessages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
-                      <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-sm font-medium ${
-                        msg.role === 'user' 
-                        ? 'bg-blue-600 text-white rounded-br-none' 
-                        : 'bg-white/10 text-slate-200 border border-white/5 rounded-bl-none'
-                      }`}>
-                        {msg.text}
+                  chatMessages.map((msg, idx) => {
+                    const { thinking, cleanText } = parseMessage(msg.text);
+                    const isExpanded = expandedThoughts[idx];
+
+                    return (
+                      <div key={idx} className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-fadeIn`}>
+                         
+                         {msg.role === 'model' && thinking && (
+                           <div className="max-w-[85%] mb-1">
+                              <button 
+                                onClick={() => toggleThought(idx)}
+                                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-widest flex items-center gap-2 mb-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 transition-colors"
+                              >
+                                {isExpanded ? 'Hide Thought Process' : 'Show AI Thought Process'}
+                                <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                              </button>
+                              {isExpanded && (
+                                <div className="bg-slate-950/50 p-4 rounded-2xl border border-indigo-500/20 text-indigo-200 text-xs font-mono leading-relaxed mb-2 animate-fadeIn">
+                                  {thinking}
+                                </div>
+                              )}
+                           </div>
+                         )}
+
+                         <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-sm font-medium ${
+                            msg.role === 'user' 
+                            ? 'bg-blue-600 text-white rounded-br-none' 
+                            : 'bg-white/10 text-slate-200 border border-white/5 rounded-bl-none'
+                          }`}>
+                            {cleanText || msg.text}
+                          </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
                 {isBuddyThinking && (
                   <div className="flex justify-start animate-pulse">
@@ -432,6 +532,30 @@ export const ResultView: React.FC<ResultViewProps> = ({
         </div>
 
         <div className="lg:col-span-5 space-y-8">
+           {/* Deep Dive Suggestions Panel */}
+           {deepDiveSuggestions.length > 0 && (
+             <section className="bg-gradient-to-br from-indigo-500 to-blue-600 rounded-[2.5rem] p-6 shadow-lg shadow-indigo-200 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-12 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+                <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2 relative z-10">
+                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                   Dive Deeper
+                </h3>
+                <p className="text-xs font-medium text-indigo-100 mb-4 max-w-xs relative z-10">Select a topic to generate an instant micro-lesson.</p>
+                <div className="space-y-2 relative z-10">
+                   {deepDiveSuggestions.map((suggestion, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => handleDeepDiveClick(suggestion)}
+                        className="w-full text-left px-4 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-sm font-bold transition-all flex items-center justify-between group"
+                      >
+                         {suggestion}
+                         <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                      </button>
+                   ))}
+                </div>
+             </section>
+           )}
+
           {hasImagesMode && (
             <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100 min-h-[300px] flex flex-col">
                <div className="flex justify-between items-center mb-4 px-2">
@@ -450,6 +574,25 @@ export const ResultView: React.FC<ResultViewProps> = ({
                </div>
             </section>
           )}
+
+           {/* Interactive Diagram Section */}
+           <section className="bg-white rounded-[2.5rem] p-6 shadow-lg border border-slate-100 min-h-[300px] flex flex-col">
+               <div className="flex justify-between items-center mb-4 px-2">
+                 <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.642.316a6 6 0 01-3.86.517l-2.388-.477a2 2 0 00-1.022.547l-1.168 1.168a2 2 0 00.556 3.212 9.035 9.035 0 007.146 0 2 2 0 00.556-3.212l-1.168-1.168z" /></svg>
+                    Interactive Schematic
+                 </h3>
+               </div>
+               <div className="aspect-square rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 shadow-sm relative flex-grow flex items-center justify-center p-4">
+                  {isDiagramLoading ? (
+                    <div className="absolute inset-0 shimmer"></div>
+                  ) : isDiagramError ? (
+                    <ErrorPlaceholder text="Diagram unavailable" />
+                  ) : typeof content.diagram === 'string' ? (
+                    <div dangerouslySetInnerHTML={{ __html: content.diagram }} className="w-full h-full [&>svg]:w-full [&>svg]:h-full" />
+                  ) : null}
+               </div>
+            </section>
 
           <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 opacity-50"></div>

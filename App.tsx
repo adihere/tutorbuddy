@@ -12,12 +12,13 @@ import {
   generateImages,
   generateFunFacts,
   generateParentReport,
-  validateTopicSafety
+  validateTopicSafety,
+  generateDiagram
 } from './services/geminiService.ts';
 
-const DAILY_LIMIT = 2;
-const COOLDOWN_MS = 15000;
-const VALID_CODES = ["BETA2025", "CLASS123"];
+const DAILY_LIMIT = 5; // Increased for testing
+const COOLDOWN_MS = 5000;
+const VALID_CODES = ["BETA2025", "CLASS123", "JUDGE"];
 const DEBUG = true;
 
 const App: React.FC = () => {
@@ -71,12 +72,11 @@ const App: React.FC = () => {
 
   const saveToHistory = (newContent: LearningContent) => {
     if (DEBUG) console.log('[App] Saving session to history');
-    // Only save if we have actual content, avoiding pure error states for history
     const leanContent: LearningContent = {
       ...newContent,
-      images: Array.isArray(newContent.images) ? null : newContent.images, // Don't save large images to localstorage
+      images: Array.isArray(newContent.images) ? null : newContent.images,
+      diagram: newContent.diagram === 'LOADING' ? 'ERROR' : newContent.diagram, // Don't save large diagram state if loading
       contextImage: undefined,
-      // Ensure we don't save 'LOADING' states to history, fallback to ERROR if still loading
       quizQuestions: newContent.quizQuestions === 'LOADING' ? 'ERROR' : newContent.quizQuestions,
       funFacts: newContent.funFacts === 'LOADING' ? 'ERROR' : newContent.funFacts,
       parentReport: newContent.parentReport === 'LOADING' ? 'ERROR' : newContent.parentReport,
@@ -98,7 +98,6 @@ const App: React.FC = () => {
   };
 
   const handleLoadHistory = (item: HistoryItem) => {
-    if (DEBUG) console.log('[App] Loading history item:', item.topic);
     setContent(item.content);
     setState('RESULT');
   };
@@ -158,15 +157,12 @@ const App: React.FC = () => {
     outputMode: OutputMode,
     contextImage?: string
   ) => {
-    if (DEBUG) console.log('[App] handleStartSession called:', { userTopic, subject, ageGroup, outputMode });
     const usage = checkUsageAllowed();
     if (!usage.allowed) {
       if (usage.reason === 'COOLDOWN') {
-        if (DEBUG) console.log('[App] Usage disallowed: COOLDOWN');
         setCooldownRemaining(usage.remainingSeconds || 0);
         return;
       }
-      if (DEBUG) console.log('[App] Usage disallowed: LIMIT');
       setShowCodeModal(true);
       return;
     }
@@ -179,19 +175,20 @@ const App: React.FC = () => {
       setLoadingStep(`Analyzing safety & age-appropriateness...`);
       const safety = await validateTopicSafety(userTopic, subject, ageGroup);
       if (!safety.isSafe) throw new Error(safety.reason || "Topic flagged by safety guidelines.");
-      if (DEBUG) console.log('[App] Safety check passed');
 
-      setLoadingStep(`Drafting your custom ${subject} lesson...`);
-      const tutorial = await generateTutorial(userTopic, subject, ageGroup, contextImage);
-      if (DEBUG) console.log('[App] Tutorial generated');
+      setLoadingStep(`Searching trusted sources & drafting lesson...`);
+      // Update: Now returns object with grounding metadata
+      const { text: tutorial, groundingChunks } = await generateTutorial(userTopic, subject, ageGroup, contextImage);
 
       const initialContent: LearningContent = {
         topic: userTopic,
         subject: subject,
         ageGroup: ageGroup,
         explanation: tutorial,
+        groundingSource: groundingChunks,
         quizQuestions: 'LOADING',
         images: outputMode === 'TEXT_AUDIO_IMAGES' ? 'LOADING' : null,
+        diagram: 'LOADING', // New Loading State
         funFacts: 'LOADING',
         parentReport: 'LOADING',
         outputMode: outputMode,
@@ -210,7 +207,6 @@ const App: React.FC = () => {
         setContent(prev => {
           if (!prev) return null;
           const updated = { ...prev, ...update };
-          // Save history when report is loaded or errored (final step)
           if (update.parentReport && update.parentReport !== 'LOADING') {
              saveToHistory(updated);
           }
@@ -218,55 +214,32 @@ const App: React.FC = () => {
         });
       };
 
-      // Execute secondary generators concurrently, handling failures individually
-      if (DEBUG) console.log('[App] Triggering concurrent content generation (Quiz, Facts, Report, Images)');
-      
+      // Concurrent Generators
       generateQuiz(userTopic, subject, ageGroup, contextImage)
-        .then(quiz => {
-          if (DEBUG) console.log('[App] Quiz loaded');
-          updateContent({ quizQuestions: quiz });
-        })
-        .catch((e) => {
-          if (DEBUG) console.error('[App] Quiz failed', e);
-          updateContent({ quizQuestions: 'ERROR' });
-        });
+        .then(quiz => updateContent({ quizQuestions: quiz }))
+        .catch(() => updateContent({ quizQuestions: 'ERROR' }));
 
       generateFunFacts(userTopic, subject, ageGroup)
-        .then(facts => {
-          if (DEBUG) console.log('[App] Facts loaded');
-          updateContent({ funFacts: facts });
-        })
-        .catch((e) => {
-          if (DEBUG) console.error('[App] Facts failed', e);
-          updateContent({ funFacts: 'ERROR' });
-        });
+        .then(facts => updateContent({ funFacts: facts }))
+        .catch(() => updateContent({ funFacts: 'ERROR' }));
 
       generateParentReport(userTopic, subject, ageGroup)
-        .then(report => {
-          if (DEBUG) console.log('[App] Report loaded');
-          updateContent({ parentReport: report });
-        })
-        .catch((e) => {
-          if (DEBUG) console.error('[App] Report failed', e);
-          updateContent({ parentReport: 'ERROR' });
-        });
+        .then(report => updateContent({ parentReport: report }))
+        .catch(() => updateContent({ parentReport: 'ERROR' }));
+      
+      // New: Generate Interactive Diagram (SVG Code)
+      generateDiagram(userTopic, subject)
+        .then(svg => updateContent({ diagram: svg || 'ERROR' }))
+        .catch(() => updateContent({ diagram: 'ERROR' }));
       
       if (outputMode === 'TEXT_AUDIO_IMAGES') {
         generateImages(userTopic, subject, ageGroup)
-          .then(images => {
-            if (DEBUG) console.log('[App] Images loaded');
-            updateContent({ images });
-          })
-          .catch((e) => {
-            if (DEBUG) console.error('[App] Images failed', e);
-            updateContent({ images: 'ERROR' });
-          });
+          .then(images => updateContent({ images }))
+          .catch(() => updateContent({ images: 'ERROR' }));
       }
 
     } catch (err: any) {
       console.error("Session Generation Failed:", err);
-      if (DEBUG) console.error('[App] Critical session error:', err);
-      // Nice error mapping
       let msg = err.message || "An unexpected error occurred.";
       if (msg.includes("API key")) msg = "Invalid API Key. Please check your settings.";
       setError(msg);
@@ -275,7 +248,6 @@ const App: React.FC = () => {
   }, []);
 
   const resetSession = () => {
-    if (DEBUG) console.log('[App] Resetting session');
     setContent(null);
     setState('IDLE');
   };

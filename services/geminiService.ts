@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { QuizQuestion, ParentReport } from "../types.ts";
+import { QuizQuestion, ParentReport, GroundingChunk } from "../types.ts";
 
 const DEBUG = true;
 
@@ -15,7 +15,6 @@ CRITICAL SAFETY & NEUTRALITY DIRECTIVE:
 - Absolutely no harmful or adult themes.
 `;
 
-// Helper to sanitize error messages for the UI
 function handleGenAIError(err: any): never {
   if (DEBUG) console.error("Gemini API Error (Raw):", err);
   const msg = err.message || '';
@@ -58,35 +57,30 @@ export async function validateTopicSafety(topic: string, subject: string, ageGro
     return result;
   } catch (err: any) {
     if (DEBUG) console.warn(`[GeminiService] validateTopicSafety failed, bypassing check:`, err);
-    // If it's a strict blocking error, respect it.
     if (err.message?.includes('SAFETY')) {
        return { isSafe: false, reason: "Safety filters blocked this topic." };
     }
-    // Fail open for connectivity issues to allow the robust main generation to handle it
     return { isSafe: true };
   }
 }
 
-export async function generateTutorial(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<string> {
-  if (DEBUG) console.log(`[GeminiService] generateTutorial: Starting for "${topic}"`);
+export async function generateTutorial(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<{ text: string, groundingChunks?: GroundingChunk[] }> {
+  if (DEBUG) console.log(`[GeminiService] generateTutorial: Starting for "${topic}" with Search Grounding`);
   try {
     const ai = getAI();
     const promptParts: any[] = [
-      { text: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}".` },
+      { text: `${SAFETY_DIRECTIVE} Expert ${subject} tutor for age ${ageGroup} on "${topic}". Use Google Search to ensure facts are up-to-date.` },
       { text: `
-        CRITICAL FORMATTING INSTRUCTIONS for SUPERIOR READABILITY:
-        - Use clear, descriptive Markdown headers (## and ###).
-        - Keep paragraphs short (3-4 sentences maximum).
-        - Use bullet points or numbered lists frequently to break up text.
-        - Add a "Concept Spotlight" blockquote for the most important part.
-        - Use bold text for essential terminology.
-        - Ensure a smooth flow from "What is it?" to "Why does it matter?"
+        CRITICAL FORMATTING INSTRUCTIONS:
+        - Use clear, descriptive Markdown headers.
+        - Add a "Concept Spotlight" blockquote.
+        - Ensure a smooth flow.
       ` }
     ];
 
     if (contextImage) {
       if (DEBUG) console.log(`[GeminiService] generateTutorial: Including context image`);
-      promptParts.push({ text: "CONTEXT: Prioritize concepts shown in the attached schoolwork image to align with current curriculum focus." });
+      promptParts.push({ text: "CONTEXT: Prioritize concepts shown in the attached schoolwork image." });
       promptParts.push({
         inlineData: {
           mimeType: 'image/jpeg',
@@ -98,11 +92,21 @@ export async function generateTutorial(topic: string, subject: string, ageGroup:
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { parts: promptParts },
+      config: {
+        tools: [{ googleSearch: {} }]
+      }
     });
     
     if (!response.text) throw new Error("Empty response generated.");
-    if (DEBUG) console.log(`[GeminiService] generateTutorial: Success (${response.text.length} chars)`);
-    return response.text;
+    
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    
+    if (DEBUG) console.log(`[GeminiService] generateTutorial: Success. Citations found: ${groundingChunks.length}`);
+    
+    return { 
+      text: response.text,
+      groundingChunks: groundingChunks
+    };
   } catch (err) {
     handleGenAIError(err);
   }
@@ -115,13 +119,12 @@ export async function askBuddy(history: {role: 'user' | 'model', text: string}[]
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise and encouraging tutor for a ${ageGroup}-year-old. Socratic method: guide, don't just tell.`
+        systemInstruction: `${SAFETY_DIRECTIVE} You are Buddy, a wise tutor for age ${ageGroup}.
+        IMPORTANT: Before answering, you MUST think step-by-step about how to explain this simply. 
+        Wrap your thinking process in <thinking>...</thinking> tags. 
+        Then provide your clear, friendly response.`
       }
     });
-    // Note: Recreating chat for single turn or managing history externally as typical in these stateless wrappers
-    // Ideally we pass history into `history` param of create, but here we just send message for simplicity in this specific snippet
-    // If strict history is needed:
-    // const chat = ai.chats.create({ model: ..., history: history.map(...) })
     
     const response = await chat.sendMessage({ message: userMessage });
     if (DEBUG) console.log(`[GeminiService] askBuddy: Response received`);
@@ -132,10 +135,40 @@ export async function askBuddy(history: {role: 'user' | 'model', text: string}[]
   }
 }
 
+export async function generateDeepDiveSuggestions(topic: string, subject: string, ageGroup: number): Promise<string[]> {
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Identify 3 fascinating sub-topics or complex terms related to "${topic}" (${subject}) that a ${ageGroup}-year-old student might want to "Deep Dive" into. Return a JSON array of strings (max 4 words each).`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
+      }
+    });
+    return JSON.parse(response.text || '[]');
+  } catch (err) {
+    console.error("Deep Dive Suggestions Error", err);
+    return [];
+  }
+}
+
+export async function generateDeepDiveContent(subTopic: string, parentTopic: string, ageGroup: number): Promise<string> {
+   try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Write a short, exciting "Micro-Lesson" about "${subTopic}" (context: ${parentTopic}) for a ${ageGroup}-year-old. Use analogies. Max 150 words.`,
+    });
+    return response.text || "Could not load deep dive.";
+  } catch (err) {
+    return "Error loading content.";
+  }
+}
+
 async function generateDialogueText(tutorialText: string, topic: string, ageGroup: number): Promise<string> {
-  if (DEBUG) console.log(`[GeminiService] generateDialogueText: converting tutorial to dialogue`);
   const ai = getAI();
-  const prompt = `Convert this lesson about "${topic}" into a short, emotional dialogue between 'Buddy' (Tutor) and 'Sam' (Student). Focus on the core wonder. Content: ${tutorialText.slice(0, 1000)}`;
+  const prompt = `Convert this lesson about "${topic}" into a short dialogue between 'Buddy' and 'Sam'. Content: ${tutorialText.slice(0, 1000)}`;
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt,
@@ -144,7 +177,6 @@ async function generateDialogueText(tutorialText: string, topic: string, ageGrou
 }
 
 export async function generateSpeech(tutorialText: string, topic: string, ageGroup: number): Promise<string | null> {
-  if (DEBUG) console.log(`[GeminiService] generateSpeech: Starting TTS generation`);
   try {
     const ai = getAI();
     const dialogue = await generateDialogueText(tutorialText, topic, ageGroup);
@@ -163,24 +195,42 @@ export async function generateSpeech(tutorialText: string, topic: string, ageGro
         },
       },
     });
-    const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-    if (DEBUG) console.log(`[GeminiService] generateSpeech: Complete. Data length: ${audioData?.length || 0}`);
-    return audioData;
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (err) {
     console.error("Speech Generation Error:", err);
     return null;
   }
 }
 
+export async function generateDiagram(topic: string, subject: string): Promise<string | null> {
+  if (DEBUG) console.log(`[GeminiService] generateDiagram: Generating SVG code`);
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Create a clean, educational SVG diagram code for "${topic}" (${subject}). 
+      - Return ONLY the raw <svg>...</svg> code. 
+      - Do not wrap in markdown blocks. 
+      - Use inline styles. 
+      - Make it colorful and use a viewbox of 0 0 800 600. 
+      - Include labels text elements.`,
+    });
+    let svg = response.text || "";
+    svg = svg.replace(/```svg/g, '').replace(/```xml/g, '').replace(/```/g, '').trim();
+    return svg.startsWith('<svg') ? svg : null;
+  } catch (err) {
+    console.error("Diagram Error", err);
+    return null;
+  }
+}
+
 export async function generateImages(topic: string, subject: string, ageGroup: number): Promise<string[]> {
-  if (DEBUG) console.log(`[GeminiService] generateImages: Starting batch generation`);
   const ai = getAI();
   const prompts = [
     `Detailed educational illustration of ${topic} (${subject}), age ${ageGroup}.`,
     `Scientific conceptual visualization of ${topic}.`,
     `Informative diagram of ${topic} for students.`,
-    `Atmospheric scene depicting ${topic}.`,
-    `Core component of ${topic} explained visually.`
+    `Atmospheric scene depicting ${topic}.`
   ];
 
   try {
@@ -197,16 +247,14 @@ export async function generateImages(topic: string, subject: string, ageGroup: n
       .map(p => `data:image/png;base64,${p.inlineData.data}`);
       
     if (images.length === 0) throw new Error("No images generated");
-    if (DEBUG) console.log(`[GeminiService] generateImages: Generated ${images.length} images`);
     return images;
   } catch (err) {
     console.error("Image Gen Error:", err);
-    throw err; // Propagate to let UI handle "ERROR" state
+    throw err;
   }
 }
 
 export async function generateQuiz(topic: string, subject: string, ageGroup: number, contextImage?: string): Promise<QuizQuestion[]> {
-  if (DEBUG) console.log(`[GeminiService] generateQuiz: Starting`);
   try {
     const ai = getAI();
     const promptParts: any[] = [{ text: `Generate 5 friendly MCQ questions for "${topic}" (${subject}) age ${ageGroup}. Include explanations.` }];
@@ -234,8 +282,6 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
       }
     });
     const data = JSON.parse(response.text || '[]');
-    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid quiz data");
-    if (DEBUG) console.log(`[GeminiService] generateQuiz: Success, ${data.length} questions`);
     return data;
   } catch (err) {
     console.error("Quiz Gen Error:", err);
@@ -244,7 +290,6 @@ export async function generateQuiz(topic: string, subject: string, ageGroup: num
 }
 
 export async function generateFunFacts(topic: string, subject: string, ageGroup: number): Promise<string[]> {
-  if (DEBUG) console.log(`[GeminiService] generateFunFacts: Starting`);
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
@@ -255,10 +300,7 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
         responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
       }
     });
-    const data = JSON.parse(response.text || '[]');
-    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid facts data");
-    if (DEBUG) console.log(`[GeminiService] generateFunFacts: Success`);
-    return data;
+    return JSON.parse(response.text || '[]');
   } catch (err) {
      console.error("Facts Gen Error:", err);
      throw err;
@@ -266,7 +308,6 @@ export async function generateFunFacts(topic: string, subject: string, ageGroup:
 }
 
 export async function generateParentReport(topic: string, subject: string, ageGroup: number): Promise<ParentReport | null> {
-  if (DEBUG) console.log(`[GeminiService] generateParentReport: Starting`);
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
@@ -285,7 +326,6 @@ export async function generateParentReport(topic: string, subject: string, ageGr
         }
       }
     });
-    if (DEBUG) console.log(`[GeminiService] generateParentReport: Success`);
     return JSON.parse(response.text || 'null');
   } catch (err) {
     console.error("Report Gen Error:", err);

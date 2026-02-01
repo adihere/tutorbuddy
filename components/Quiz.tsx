@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { QuizQuestion, QuizResult } from '../types';
 
@@ -13,8 +14,19 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [shake, setShake] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const currentQuestion = questions[currentIndex];
+
+  const speak = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   const handleCheck = () => {
     if (!selectedOption || isAnswered) return;
@@ -22,14 +34,17 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
     const isCorrect = selectedOption === currentQuestion.correctAnswer;
     if (isCorrect) {
       setScore(s => s + 1);
+      speak("Correct! " + currentQuestion.explanation);
     } else {
       setShake(true);
       setTimeout(() => setShake(false), 500);
+      speak("Not quite. The answer is " + currentQuestion.correctAnswer);
     }
     setIsAnswered(true);
   };
 
   const handleNext = () => {
+    window.speechSynthesis.cancel();
     setIsAnswered(false);
     setSelectedOption(null);
 
@@ -104,6 +119,13 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
           50% { transform: scale(1.05); }
           100% { transform: scale(1); }
         }
+        @keyframes speak-pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.2); opacity: 0.8; }
+        }
+        .speaking-icon {
+          animation: speak-pulse 1s infinite;
+        }
       `}</style>
 
       <div className="mb-8">
@@ -122,9 +144,18 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
             </div>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
-          <h3 className="text-xl font-bold text-slate-800 leading-snug">{currentQuestion.question}</h3>
+          <div className="flex items-start gap-3">
+             <button 
+                onClick={() => speak(currentQuestion.question)}
+                className={`flex-shrink-0 mt-1 p-2 rounded-full bg-slate-100 hover:bg-emerald-100 text-slate-500 hover:text-emerald-600 transition-colors ${isSpeaking ? 'speaking-icon text-emerald-600 bg-emerald-100' : ''}`}
+                title="Read Aloud"
+             >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+             </button>
+             <h3 className="text-xl font-bold text-slate-800 leading-snug">{currentQuestion.question}</h3>
+          </div>
         </div>
       </div>
 

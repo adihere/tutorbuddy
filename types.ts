@@ -10,9 +10,18 @@ export type OutputMode = 'TEXT' | 'TEXT_AUDIO' | 'TEXT_AUDIO_IMAGES' | 'ALL';
 
 export type Loadable<T> = T | 'LOADING' | 'ERROR';
 
+export interface GroundingChunk {
+  web?: {
+    uri: string;
+    title: string;
+  };
+}
+
 export interface LearningContent {
   explanation: string;
+  groundingSource?: GroundingChunk[]; 
   images: Loadable<string[]>;
+  diagram: Loadable<string>; 
   quizQuestions: Loadable<QuizQuestion[]>;
   topic: string;
   subject: string;
@@ -20,7 +29,8 @@ export interface LearningContent {
   parentReport: Loadable<ParentReport>;
   outputMode: OutputMode;
   ageGroup: number;
-  contextImage?: string; // Base64 image of classwork
+  contextImage?: string;
+  deepDiveSuggestions?: string[]; // New
 }
 
 export interface ParentReport {
