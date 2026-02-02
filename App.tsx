@@ -314,8 +314,12 @@ const App: React.FC = () => {
 
       {state === 'IDLE' && (
         <>
-          <LandingPage onStart={() => formRef.current?.scrollIntoView({ behavior: 'smooth' })} />
-          <div ref={formRef} className="mt-12 space-y-6">
+          <LandingPage 
+            onStart={() => formRef.current?.scrollIntoView({ behavior: 'smooth' })} 
+            isKeyConnected={isKeyConnected}
+            onConnectKey={handleConnectKey}
+          />
+          <div ref={formRef} className="mt-8 md:mt-12 space-y-6">
             {cooldownRemaining > 0 && (
               <div className="max-w-4xl mx-auto px-8 py-4 bg-amber-50 border-2 border-amber-100 rounded-2xl text-amber-700 font-bold flex items-center justify-center gap-3 animate-fadeIn">
                 <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

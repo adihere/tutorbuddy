@@ -71,7 +71,10 @@ export const TutorForm: React.FC<TutorFormProps> = ({ onSubmit, isLoading, histo
 
   const clearImage = () => {
     setContextImage(undefined);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    // CRITICAL FIX: Reset file input value to allow re-selecting the same file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const modeOptions: { id: OutputMode; title: string; desc: string; icon: React.ReactNode; color: string; disabled?: boolean }[] = [

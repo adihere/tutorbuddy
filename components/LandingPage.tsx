@@ -4,26 +4,18 @@ import { GoogleGenAI } from "@google/genai";
 
 interface LandingPageProps {
   onStart: () => void;
+  isKeyConnected: boolean;
+  onConnectKey: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onStart, isKeyConnected, onConnectKey }) => {
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
-  const [isKeyConnected, setIsKeyConnected] = useState(false);
   const [isGeneratingHero, setIsGeneratingHero] = useState(false);
 
-  const checkKeyStatus = useCallback(async () => {
-    try {
-      // @ts-ignore
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      setIsKeyConnected(hasKey);
-      return hasKey;
-    } catch (e) {
-      return false;
-    }
-  }, []);
-
   const generateHeroImage = useCallback(async () => {
-    if (isGeneratingHero) return;
+    // Only generate if key is present and we haven't already
+    if (isGeneratingHero || !isKeyConnected) return;
+    
     setIsGeneratingHero(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -48,24 +40,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         setHeroImageUrl(`data:image/png;base64,${imagePart.inlineData.data}`);
       }
     } catch (error) {
-      console.warn("Hero image generation deferred (usually key missing).", error);
+      console.warn("Hero image generation deferred or failed.", error);
     } finally {
       setIsGeneratingHero(false);
     }
-  }, [isGeneratingHero]);
+  }, [isGeneratingHero, isKeyConnected]);
 
+  // Reactive effect: Try to generate image when key status changes to true
   useEffect(() => {
-    checkKeyStatus().then(hasKey => {
-      if (hasKey) generateHeroImage();
-    });
-  }, []);
-
-  const handleConnectKey = async () => {
-    // @ts-ignore
-    await window.aistudio.openSelectKey();
-    const hasKey = await checkKeyStatus();
-    if (hasKey) generateHeroImage();
-  };
+    if (isKeyConnected && !heroImageUrl) {
+      generateHeroImage();
+    }
+  }, [isKeyConnected, generateHeroImage, heroImageUrl]);
 
   const handleOpenDemo = () => {
     window.open('https://youtu.be/5RXk6AvlUUc', '_blank', 'noopener,noreferrer');
@@ -92,7 +78,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             Enter any topic. We generate a professional tutorial, an emotional audio dialogue, and 5 custom visual mastery aids instantly.
           </p>
 
-          <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 sm:gap-4 pt-4 justify-center lg:justify-start w-full">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4 pt-4 justify-center lg:justify-start w-full">
             {/* Video Demo Button with Tooltip */}
             <div className="relative group/tooltip w-full sm:w-auto">
               <button
@@ -106,15 +92,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                 </div>
                 Video Demo
               </button>
-              
-              {/* Custom Tooltip - Hidden on mobile to prevent overflow issues */}
-              <div className="hidden md:block absolute bottom-full left-1/2 -translate-x-1/2 mb-4 px-4 py-2 bg-slate-900 text-white text-[11px] font-bold rounded-xl opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-all duration-300 whitespace-nowrap shadow-2xl scale-95 group-hover/tooltip:scale-100 translate-y-2 group-hover/tooltip:translate-y-0 z-50">
-                <div className="flex items-center gap-2">
-                  <svg className="w-3 h-3 text-rose-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
-                  Opens YouTube in a new window
-                </div>
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
-              </div>
             </div>
 
             <button
@@ -126,10 +103,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             
             <div className="relative group w-full sm:w-auto">
               <button
-                onClick={handleConnectKey}
+                onClick={onConnectKey}
+                disabled={isKeyConnected}
                 className={`w-full sm:w-auto px-6 py-4 md:px-6 md:py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all border-2 ${
                   isKeyConnected 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default' 
                     : 'bg-white border-slate-200 text-slate-700 hover:border-blue-400'
                 }`}
               >
@@ -152,12 +130,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         <div className="flex-1 w-full max-w-2xl relative mt-8 lg:mt-0">
           <div className="absolute -inset-4 bg-blue-400/10 blur-3xl rounded-full"></div>
           {heroImageUrl ? (
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 md:border-8 border-white ring-1 ring-slate-100 bg-white">
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 md:border-8 border-white ring-1 ring-slate-100 bg-white animate-fadeIn">
               <img src={heroImageUrl} alt="TutorBuddy Scene" className="w-full h-auto object-cover" />
             </div>
           ) : (
-            <div className="aspect-video bg-white rounded-3xl animate-pulse flex items-center justify-center border-4 border-dashed border-slate-200 relative">
-              <span className="text-slate-400 font-bold uppercase tracking-widest text-xs md:text-sm px-4 text-center">Orchestrating AI Tutor...</span>
+            <div className="aspect-video bg-white rounded-3xl flex items-center justify-center border-4 border-dashed border-slate-200 relative group overflow-hidden">
+               {isGeneratingHero ? (
+                   <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                      <span className="text-xs font-bold text-blue-600 uppercase tracking-widest animate-pulse">Designing Hero...</span>
+                   </div>
+               ) : (
+                   <div className="text-center p-6">
+                      <span className="block text-4xl mb-2">🎨</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-widest text-xs md:text-sm">
+                        {isKeyConnected ? "Generating visual..." : "Connect Key to Generate Hero"}
+                      </span>
+                   </div>
+               )}
             </div>
           )}
         </div>
