@@ -16,9 +16,9 @@ import {
   generateDiagram
 } from './services/geminiService.ts';
 
-const DAILY_LIMIT = 5; // Increased for testing
-const COOLDOWN_MS = 5000;
-const VALID_CODES = ["BETA2025", "CLASS123", "JUDGE"];
+const FREE_LIMIT = 1;
+const COOLDOWN_MS = 2000;
+const VALID_CODES = ["BETA2025", "CLASS123", "JUDGE"]; // Legacy support
 const DEBUG = true;
 
 const App: React.FC = () => {
@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [inputCode, setInputCode] = useState('');
+  const [isKeyConnected, setIsKeyConnected] = useState(false);
 
   // Sync initial state with localStorage
   useEffect(() => {
@@ -58,7 +59,19 @@ const App: React.FC = () => {
         console.error("Failed to parse history", e);
       }
     }
+    
+    checkKeyStatus();
   }, []);
+
+  const checkKeyStatus = async () => {
+    try {
+      // @ts-ignore
+      const hasKey = typeof window.aistudio !== 'undefined' && await window.aistudio.hasSelectedApiKey();
+      setIsKeyConnected(!!hasKey);
+    } catch (e) {
+      console.warn("Key check failed", e);
+    }
+  };
 
   useEffect(() => {
     let timer: number;
@@ -75,7 +88,7 @@ const App: React.FC = () => {
     const leanContent: LearningContent = {
       ...newContent,
       images: Array.isArray(newContent.images) ? null : newContent.images,
-      diagram: newContent.diagram === 'LOADING' ? 'ERROR' : newContent.diagram, // Don't save large diagram state if loading
+      diagram: newContent.diagram === 'LOADING' ? 'ERROR' : newContent.diagram,
       contextImage: undefined,
       quizQuestions: newContent.quizQuestions === 'LOADING' ? 'ERROR' : newContent.quizQuestions,
       funFacts: newContent.funFacts === 'LOADING' ? 'ERROR' : newContent.funFacts,
@@ -102,26 +115,13 @@ const App: React.FC = () => {
     setState('RESULT');
   };
 
-  const checkUsageAllowed = (): { allowed: boolean; reason?: 'COOLDOWN' | 'LIMIT'; remainingSeconds?: number } => {
-    const storedCount = parseInt(localStorage.getItem('tb_runCount') || '0');
+  const checkCooldown = (): number => {
     const lastRunAt = parseInt(localStorage.getItem('tb_lastRunAt') || '0');
-    const storedHasCode = !!localStorage.getItem('tb_hasSharedCode');
-    const now = Date.now();
-    const elapsed = now - lastRunAt;
-
-    if (storedCount > 0 && elapsed < COOLDOWN_MS) {
-      return { 
-        allowed: false, 
-        reason: 'COOLDOWN', 
-        remainingSeconds: Math.ceil((COOLDOWN_MS - elapsed) / 1000) 
-      };
+    const elapsed = Date.now() - lastRunAt;
+    if (elapsed < COOLDOWN_MS) {
+      return Math.ceil((COOLDOWN_MS - elapsed) / 1000);
     }
-
-    if (!storedHasCode && storedCount >= DAILY_LIMIT) {
-      return { allowed: false, reason: 'LIMIT' };
-    }
-
-    return { allowed: true };
+    return 0;
   };
 
   const handleCodeSubmit = (e: React.FormEvent) => {
@@ -137,16 +137,14 @@ const App: React.FC = () => {
     }
   };
 
-  const checkAndSelectKey = async () => {
-    // @ts-ignore
-    if (typeof window.aistudio === 'undefined') {
-      throw new Error("AI Studio Key Manager not detected. Please ensure you are running in the correct environment.");
-    }
-    // @ts-ignore
-    const hasKey = await window.aistudio.hasSelectedApiKey();
-    if (!hasKey) {
+  const handleConnectKey = async () => {
+    if (hasSharedCode || isKeyConnected) return;
+    try {
       // @ts-ignore
       await window.aistudio.openSelectKey();
+      await checkKeyStatus();
+    } catch (e) {
+      console.error("Failed to connect key", e);
     }
   };
 
@@ -157,18 +155,34 @@ const App: React.FC = () => {
     outputMode: OutputMode,
     contextImage?: string
   ) => {
-    const usage = checkUsageAllowed();
-    if (!usage.allowed) {
-      if (usage.reason === 'COOLDOWN') {
-        setCooldownRemaining(usage.remainingSeconds || 0);
-        return;
-      }
-      setShowCodeModal(true);
+    const remainingCooldown = checkCooldown();
+    if (remainingCooldown > 0) {
+      setCooldownRemaining(remainingCooldown);
       return;
     }
 
     try {
-      await checkAndSelectKey();
+      // Access Control Logic
+      let shouldUseOwnKey = false;
+      
+      if (!hasSharedCode && runCount >= FREE_LIMIT) {
+        shouldUseOwnKey = true;
+      }
+
+      if (shouldUseOwnKey) {
+        // @ts-ignore
+        const hasKey = typeof window.aistudio !== 'undefined' && await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+           // @ts-ignore
+           await window.aistudio.openSelectKey();
+           // Double check
+           // @ts-ignore
+           const keyAfterPrompt = await window.aistudio.hasSelectedApiKey();
+           if (!keyAfterPrompt) return;
+        }
+        setIsKeyConnected(true);
+      }
+
       setState('PROCESSING');
       setError(null);
 
@@ -177,7 +191,6 @@ const App: React.FC = () => {
       if (!safety.isSafe) throw new Error(safety.reason || "Topic flagged by safety guidelines.");
 
       setLoadingStep(`Searching trusted sources & drafting lesson...`);
-      // Update: Now returns object with grounding metadata
       const { text: tutorial, groundingChunks } = await generateTutorial(userTopic, subject, ageGroup, contextImage);
 
       const initialContent: LearningContent = {
@@ -188,7 +201,7 @@ const App: React.FC = () => {
         groundingSource: groundingChunks,
         quizQuestions: 'LOADING',
         images: outputMode === 'TEXT_AUDIO_IMAGES' ? 'LOADING' : null,
-        diagram: 'LOADING', // New Loading State
+        diagram: 'LOADING',
         funFacts: 'LOADING',
         parentReport: 'LOADING',
         outputMode: outputMode,
@@ -227,7 +240,6 @@ const App: React.FC = () => {
         .then(report => updateContent({ parentReport: report }))
         .catch(() => updateContent({ parentReport: 'ERROR' }));
       
-      // New: Generate Interactive Diagram (SVG Code)
       generateDiagram(userTopic, subject)
         .then(svg => updateContent({ diagram: svg || 'ERROR' }))
         .catch(() => updateContent({ diagram: 'ERROR' }));
@@ -245,7 +257,7 @@ const App: React.FC = () => {
       setError(msg);
       setState('ERROR');
     }
-  }, []);
+  }, [runCount, hasSharedCode]);
 
   const resetSession = () => {
     setContent(null);
@@ -279,8 +291,8 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-[3rem] p-12 max-w-md w-full shadow-2xl text-center border-8 border-slate-50">
             <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-8 text-4xl shadow-inner">🔑</div>
-            <h2 className="text-3xl font-black text-slate-950 mb-4 tracking-tight">Free Limit Reached</h2>
-            <p className="text-slate-500 mb-8 leading-relaxed">Please enter your Classroom Code (e.g., BETA2025) or wait until tomorrow.</p>
+            <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Access Restricted</h2>
+            <p className="text-slate-500 mb-8 leading-relaxed">Enter a Classroom Code or close this to connect your own API Key.</p>
             <form onSubmit={handleCodeSubmit} className="space-y-4">
               <input
                 type="text"
@@ -290,7 +302,7 @@ const App: React.FC = () => {
                 className="w-full px-8 py-5 rounded-2xl border-2 border-slate-100 focus:border-blue-500 outline-none text-xl text-center font-bold tracking-widest uppercase"
               />
               <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl">Submit Code</button>
-              <button type="button" onClick={() => setShowCodeModal(false)} className="w-full py-4 text-slate-400 font-bold">Maybe later</button>
+              <button type="button" onClick={() => setShowCodeModal(false)} className="w-full py-4 text-slate-400 font-bold">Use Own API Key</button>
             </form>
           </div>
         </div>
@@ -317,9 +329,20 @@ const App: React.FC = () => {
               onLoadHistory={handleLoadHistory}
             />
             <div className="text-center">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-100 px-4 py-2 rounded-full shadow-sm">
-                {hasSharedCode ? "✓ Classroom Pass Active" : `Free Daily Usage: ${runCount}/${DAILY_LIMIT}`}
-              </span>
+              <button 
+                onClick={handleConnectKey}
+                disabled={hasSharedCode || isKeyConnected}
+                className={`text-[10px] font-black uppercase tracking-widest bg-white border px-4 py-2 rounded-full shadow-sm transition-all ${
+                  hasSharedCode ? 'text-emerald-600 border-emerald-200 cursor-default' :
+                  isKeyConnected ? 'text-emerald-600 border-emerald-200 cursor-default' :
+                  runCount >= FREE_LIMIT ? 'text-blue-600 border-blue-200 hover:bg-blue-50 cursor-pointer animate-pulse' : 'text-slate-400 border-slate-100 hover:border-blue-200 cursor-pointer'
+                }`}
+              >
+                {hasSharedCode ? "✓ Classroom Pass Active" : 
+                 isKeyConnected ? "✓ Unlimited Access (Key Linked)" :
+                 runCount < FREE_LIMIT ? `Free Preview: ${runCount}/${FREE_LIMIT} • Click to Connect Key` : 
+                 "Connect Key for Unlimited Access"}
+              </button>
             </div>
           </div>
         </>
