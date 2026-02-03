@@ -56,12 +56,19 @@ When a user clicks "Generate", the system executes an **Agentic Workflow**:
     *   **Promise B**: Quiz Generation (JSON structured).
     *   **Promise C**: Fun Facts (JSON structured).
     *   **Promise D**: Visual Aids (4x Images via Gemini 2.5).
-    *   **Promise E**: Educational Diagram (SVG Code).
+    *   **Promise E**: Educational Diagram (SVG Code via Gemini 3).
     *   **Promise F**: Parent Report (Hidden from learner, stored for parent).
 4.  **State Rehydration**: As promises resolve, the UI updates incrementally (Loading skeletons -> Content).
 5.  **Lazy Generation**: High-bandwidth assets (Audio TTS) are generated only on-demand (when user clicks "Play") or pre-fetched in background if bandwidth allows.
 
-## 💾 Data Models
+## 💾 Data Models & States
+
+### App States
+The application follows a strict state machine to manage the generation lifecycle:
+- `IDLE`: Landing page and form input.
+- `PROCESSING`: Orchestrating AI agents (Safety Check -> Content Gen).
+- `RESULT`: Displaying the Mastery Canvas.
+- `ERROR`: Handling API limits or safety blocks.
 
 ### LearningContent Interface
 The core data structure holding the session state.
@@ -73,7 +80,7 @@ interface LearningContent {
   ageGroup: number;
   explanation: string;      // Markdown from Gemini 3
   groundingSource: [];      // Google Search citations
-  images: string[];         // Base64 PNGs
+  images: string[];         // Base64 PNGs from Gemini 2.5
   quizQuestions: Question[];// Structured JSON
   parentReport: Report;     // Structured JSON
   diagram: string;          // Raw SVG string

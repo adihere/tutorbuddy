@@ -33,27 +33,27 @@ TutorBuddy is an **Agentic AI Tutor** that empowers students aged 5–17. It tra
 
 ---
 
-## 🛠️ The Tech Stack
+## 🛠️ The Tech Stack & Why Gemini?
 
-| Feature | Model / Technology | Why? |
+| Feature | Model / Technology | The "Why" for Judges |
 | :--- | :--- | :--- |
-| **Reasoning Engine** | **Gemini 3 Flash** | Unmatched speed and reasoning for structuring complex lessons and grounding facts. |
-| **Visuals** | **Gemini 2.5 Flash Image** | Generates consistent, educational style illustrations instantly. |
-| **Audio/TTS** | **Gemini 2.5 Flash Audio** | Provides "Multi-Speaker" capabilities with emotional nuance (not just robotic reading). |
-| **Diagrams** | **Gemini 3 Flash (Code)** | Generates raw SVG code for scalable, clean diagrams. |
+| **Reasoning Engine** | **Gemini 3 Flash** | Selected for its sub-second latency and complex instruction following. It handles the "Orchestrator" role, managing 5 parallel streams without hallucinating safety rules. |
+| **Visuals** | **Gemini 2.5 Flash Image** | Generates consistent, educational style illustrations instantly, crucial for visual learners. |
+| **Audio/TTS** | **Gemini 2.5 Flash Audio** | The **Multi-Speaker** capability allows us to simulate a *Socratic Seminar* (Student asking, Teacher answering) rather than a mono-tone lecture. |
+| **Diagrams** | **Gemini 3 Flash (Code)** | Used to generate raw SVG code. Gemini 3's coding ability allows it to draw perfect vector diagrams of cells, atoms, or geometry. |
 | **Frontend** | **React 19 + Tailwind** | High-performance, responsive UI with fluid animations. |
 
 ---
 
 ## 🔮 Future Roadmap (Post-Hackathon)
-1.  **Video Generation**: Integration with **Veo** for dynamic explainer videos (Architecture prepared).
+1.  **Video Generation**: Integration with **Veo** for dynamic explainer videos (Architecture prepared in `geminiService.ts`).
 2.  **Long-term Memory**: User profiles that track mastery over months.
 3.  **Classroom Mode**: Teacher dashboard connecting to multiple student instances.
 
 ---
 
 ## 🎯 Hackathon Judging Checklist
-- [x] **Innovation**: Uses latest Gemini 3 models for agentic workflow.
-- [x] **Impact**: Democratizes high-quality private tutoring.
+- [x] **Innovation**: Uses latest Gemini 3 models for agentic workflow, not just text generation.
+- [x] **Impact**: Democratizes high-quality private tutoring ($0 vs $50/hr).
 - [x] **Technical Complexity**: Orchestrates 5+ parallel AI streams (Text, Quiz, Image, Audio, Safety).
-- [x] **Design**: Polished, child-friendly, accessible UI.
+- [x] **Design**: Polished, child-friendly, accessible UI with robust error handling.
