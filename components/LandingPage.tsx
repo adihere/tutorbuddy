@@ -1,6 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import React from 'react';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -9,49 +8,8 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart, isKeyConnected, onConnectKey }) => {
-  const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
-  const [isGeneratingHero, setIsGeneratingHero] = useState(false);
-
-  const generateHeroImage = useCallback(async () => {
-    // Only generate if key is present and we haven't already
-    if (isGeneratingHero || !isKeyConnected) return;
-    
-    setIsGeneratingHero(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            {
-              text: 'Kids studying in a warm, inviting public library. A cozy hybrid environment featuring stacks of physical hardcover books and colorful flip charts alongside subtle, glowing holographic digital interfaces and tablets. Soft golden hour sunlight streaming through large windows, rich wooden textures, comfortable community atmosphere, cinematic lighting, high-end educational aesthetic, 16:9 aspect ratio.',
-            },
-          ],
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: "16:9"
-          }
-        }
-      });
-
-      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-      if (imagePart?.inlineData) {
-        setHeroImageUrl(`data:image/png;base64,${imagePart.inlineData.data}`);
-      }
-    } catch (error) {
-      console.warn("Hero image generation deferred or failed.", error);
-    } finally {
-      setIsGeneratingHero(false);
-    }
-  }, [isGeneratingHero, isKeyConnected]);
-
-  // Reactive effect: Try to generate image when key status changes to true
-  useEffect(() => {
-    if (isKeyConnected && !heroImageUrl) {
-      generateHeroImage();
-    }
-  }, [isKeyConnected, generateHeroImage, heroImageUrl]);
+  // Using the specific local static image provided by the user
+  const heroImageUrl = "/hero.png";
 
   const handleOpenDemo = () => {
     window.open('https://youtu.be/5RXk6AvlUUc', '_blank', 'noopener,noreferrer');
@@ -129,27 +87,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, isKeyConnecte
 
         <div className="flex-1 w-full max-w-2xl relative mt-8 lg:mt-0">
           <div className="absolute -inset-4 bg-blue-400/10 blur-3xl rounded-full"></div>
-          {heroImageUrl ? (
             <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 md:border-8 border-white ring-1 ring-slate-100 bg-white animate-fadeIn">
-              <img src={heroImageUrl} alt="TutorBuddy Scene" className="w-full h-auto object-cover" />
+              <img 
+                src={heroImageUrl} 
+                alt="TutorBuddy Agentic Classroom" 
+                className="w-full h-auto object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/10 to-transparent pointer-events-none"></div>
             </div>
-          ) : (
-            <div className="aspect-video bg-white rounded-3xl flex items-center justify-center border-4 border-dashed border-slate-200 relative group overflow-hidden">
-               {isGeneratingHero ? (
-                   <div className="flex flex-col items-center gap-3">
-                      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                      <span className="text-xs font-bold text-blue-600 uppercase tracking-widest animate-pulse">Designing Hero...</span>
-                   </div>
-               ) : (
-                   <div className="text-center p-6">
-                      <span className="block text-4xl mb-2">🎨</span>
-                      <span className="text-slate-400 font-bold uppercase tracking-widest text-xs md:text-sm">
-                        {isKeyConnected ? "Generating visual..." : "Connect Key to Generate Hero"}
-                      </span>
-                   </div>
-               )}
-            </div>
-          )}
         </div>
       </div>
 
