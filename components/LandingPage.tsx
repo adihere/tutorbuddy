@@ -8,8 +8,10 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart, isKeyConnected, onConnectKey }) => {
-  // Using the specific local static image provided by the user
+  // Primary: Local file provided by user
+  // Fallback: High-quality Unsplash library image
   const heroImageUrl = "/hero.png";
+  const fallbackUrl = "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&q=80&w=2670";
 
   const handleOpenDemo = () => {
     window.open('https://youtu.be/5RXk6AvlUUc', '_blank', 'noopener,noreferrer');
@@ -87,11 +89,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, isKeyConnecte
 
         <div className="flex-1 w-full max-w-2xl relative mt-8 lg:mt-0">
           <div className="absolute -inset-4 bg-blue-400/10 blur-3xl rounded-full"></div>
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 md:border-8 border-white ring-1 ring-slate-100 bg-white animate-fadeIn">
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 md:border-8 border-white ring-1 ring-slate-100 bg-white animate-fadeIn min-h-[300px]">
               <img 
                 src={heroImageUrl} 
                 alt="TutorBuddy Agentic Classroom" 
-                className="w-full h-auto object-cover"
+                className="w-full h-auto object-cover min-h-[300px] bg-slate-100"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (target.src !== fallbackUrl) {
+                    target.src = fallbackUrl;
+                  }
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/10 to-transparent pointer-events-none"></div>
             </div>
